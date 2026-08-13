@@ -1,103 +1,143 @@
-# Github Action 部署
+# GitHub Actions 部署
 
-> 前提：确保您已获取到所有配置，详见：[【DouYinSparkFlow 配置生成器】使用说明](配置生成器使用.md)
+SparkFlow 已内置 GitHub Actions 工作流和 Web 控制中心。推荐先在控制中心完成配置、账号、Cookie 与定时计划预检，再把生成结果写入 GitHub Environment `user-data`。
 
-本项目已经预设Action配置，只需填写相关配置即可启用。
+> Web 控制中心是纯静态页面。它可以生成配置并读取公开的 GitHub Actions 运行状态，但不会在浏览器中保存 Cookie，也不会要求你把 GitHub Token 放进网页。
 
-## 1. Fork 仓库
+## 1. Fork 并启用 Actions
 
-采用Action部署本项目需要先 Fork 仓库。
+1. Fork 本仓库到自己的 GitHub 账号。
+2. 打开 Fork 后仓库的 `Actions` 页面。
+3. 如果 GitHub 提示 Fork 的工作流尚未启用，先手动启用 Workflows。
 
-操作步骤如下：
+首次部署完成后，建议手动运行一次 `DouYin Spark Flow Schedule Run`，确认 Cookie、好友匹配与页面结构都正常。
 
-1. 打开本项目主页，点击右上角 Fork，将仓库复制到你的 GitHub 账号下。
-2. 进入你账号下新生成的仓库，完成后续配置
+## 2. 打开 Web 控制中心
 
-> 项目有用别忘了点Star支持开发者
+控制中心源码位于 `docs/`，可通过 GitHub Pages 部署。
 
-## 2. 启用workflow与action
+控制中心包含：
 
-首次fork后需要手动启用`workflow`和对应`action`
+- **运行态**：读取当前公开仓库真实的 GitHub Actions Workflow / Run 状态；没有运行记录时会明确显示空状态，不使用模拟数据。
+- **基础配置**：生成与 `utils/config.py` 一致的环境变量。
+- **账号任务**：生成 `TASKS` 与每个账号对应的 `COOKIES_<UNIQUE_ID>` Secret 键名。
+- **定时计划**：生成与 `.github/workflows/schedule.yml` 对应的 `cron` + `timezone` 片段。
+- **部署输出**：集中展示 Environment Variables 和需要创建的 Secrets。
 
-在自己fork后的仓库上方点击`Actions`按照下方图示启用工作流
+Cookie 内容只保留在当前页面内存中。保存本地草稿时不会写入 Cookie。
 
-![启用workflow](images/启用workflow.png)
+## 3. 创建 `user-data` Environment
 
-![启用action](images/启用action.png)
+进入自己的 SparkFlow 仓库：
 
-## 3. 创建 Environment（环境）
+`Settings` → `Environments` → `New environment`
 
-这一步在你 Fork 后的仓库中创建名为 `user-data` 的 Environment（环境）。
+环境名称填写：
 
-操作路径：进入你Fork项目后的 GitHub 仓库，依次点击 `Settings` -> `Environments` -> `New environment`，名称填写 `user-data` 并创建。
+```text
+user-data
+```
 
-说明：这里创建的是部署环境（Environment），后续再在该环境下配置 Secrets 和 Variables。
+项目的生产工作流通过 `environment: user-data` 读取这里配置的 Variables 和 Secrets。
 
-![创建`user-data`环境图](images/屏幕截图%202026-02-14%20224915.png)
+## 4. 配置 Environment Variables
 
-## 4. 配置 Secrets 和 Variables
+在控制中心完成基础配置和账号任务后，进入“部署输出”页面。
 
-在你刚创建的 `user-data` Environment 中，分别配置 Variables 和 Secrets。
+把 **Environment Variables** 中的键和值写入：
 
-操作步骤如下：
+`Settings` → `Environments` → `user-data` → `Environment variables`
 
-1. 打开已经填写好的配置生成器页面，先查看左侧上方`Environment Variables` 区域。
-2. 进入 GitHub 仓库的 `Settings` -> `Environments` -> `user-data` -> `Environment variables`，逐条新增对应变量。
-3. 回到配置生成器，查看左侧下方 `Environment Secrets` 区域。
-4. 进入 GitHub 仓库的 `Settings` -> `Environments` -> `user-data` -> `Environment secrets`，逐条新增对应密钥。
+当前 Python 代码实际读取的变量包括：
 
-注意事项：
+```text
+PROXY_ADDRESS
+MESSAGE_TEMPLATE
+HITOKOTO_TYPES
+MATCH_MODE
+BROWSER_TIMEOUT
+FRIEND_LIST_WAIT_TIME
+TASK_RETRY_TIMES
+LOG_LEVEL
+TASKS
+```
 
-- 变量名和变量值请与配置生成器保持完全一致（包含大小写）建议直接使用复制按钮复制粘贴。
-- 不要把 Secrets 内容填到 Variables，也不要把 Variables 内容填到 Secrets。
+其中 `TASKS` 是 JSON 数组，每个账号包含：
 
-![配置生成器](images/配置生成器.png)
+```json
+{
+  "username": "账号标识",
+  "unique_id": "唯一标识",
+  "targets": ["好友1", "好友2"]
+}
+```
 
-## 5. 修改执行时间（可选）
+## 5. 配置 Environment Secrets
 
-如需调整自动执行时间，编辑仓库文件 `.github/workflows/schedule.yml`，找到下方配置：
+每个账号都需要一个独立 Cookie Secret，键名规则为：
+
+```text
+COOKIES_<UNIQUE_ID大写>
+```
+
+例如 `unique_id` 为 `zion0929`：
+
+```text
+COOKIES_ZION0929
+```
+
+进入：
+
+`Settings` → `Environments` → `user-data` → `Environment secrets`
+
+把 Cookie-Editor 导出的 JSON 数组作为 Secret 值粘贴进去。
+
+控制中心会检查 Cookie 是否是非空 JSON 数组，并检查常见 Playwright Cookie 字段和 `douyin.com` 域名，但最终登录有效性仍需要通过一次真实 Actions 运行确认。
+
+## 6. 修改执行时间
+
+生产工作流位于：
+
+```text
+.github/workflows/schedule.yml
+```
+
+当前工作流支持 GitHub Actions 的 `timezone` 配置，因此可以直接使用本地时间。例如每天北京时间 09:07：
 
 ```yaml
 on:
-  workflow_dispatch: # 允许手动触发
-  schedule: # 定时任务
-    - cron: "0 1 * * *" # 每天 1:00 UTC（对应北京时间 9:00）
+  workflow_dispatch:
+  schedule:
+    - cron: "7 9 * * *"
+      timezone: "Asia/Shanghai"
 ```
 
-将 `cron: "0 1 * * *"` 修改为你需要的时间表达式即可。
+控制中心“定时计划”页面可以生成对应片段，但纯静态页面不会假装已经写回仓库。复制片段后仍需提交 `.github/workflows/schedule.yml` 才会真正生效。
 
-注意事项：
+## 7. 手动运行验证
 
-- GitHub Actions 的 `cron` 使用 UTC 时区，不是北京时间。
-- 北京时间（UTC+8） = UTC 时间 + 8 小时。
-- 建议先手动触发一次工作流，确认配置无误后再依赖定时任务。
+进入仓库的 `Actions` 页面，选择：
 
-Cron 基础语法（5 段）：
+```text
+DouYin Spark Flow Schedule Run
+```
 
-`分钟 小时 日 月 星期`
+点击 `Run workflow`。
 
-常用写法：
+建议重点检查：
 
-- `*`：任意值
-- `*/n`：每 n 个单位执行一次
-- `a,b`：在多个指定值执行
-- `a-b`：在一个范围内执行
+1. `Validate SparkFlow configuration` 是否通过。
+2. `Run DouYin Spark Flow` 是否成功。
+3. Actions Summary 中的配置和运行状态。
+4. 失败时下载 `run-logs-*` Artifact 查看 `logs/` 和 `run-status.json`。
 
-示例（UTC）：
+如果控制中心显示“API 返回 0 个工作流”或“暂无运行记录”，通常表示这个 Fork 的 Actions 还没有启用或还没有完成过一次运行。启用并手动运行后，再刷新控制中心即可看到真实状态。
 
-- `0 1 * * *`：每天 UTC 01:00（北京时间 09:00）
-- `30 13 * * *`：每天 UTC 13:30（北京时间 21:30）
-- `0 */6 * * *`：每 6 小时执行一次
-- `0 1 * * 1-5`：工作日 UTC 01:00 执行
+## 8. 安全说明
 
-> 可以交给 AI 生成，下面给出提示词示例可以直接套用：
->
-> GitHub Actions 的默认时区是 UTC。我需要每天在北京时间 XXX 自动触发工作流，请换算后给出 cron 表达式。除 `cron: "..."` 这一行外，不需要输出其他内容。
+- 不要把 Cookie 提交到 Git 仓库。
+- 不要把 Cookie 放进普通 Environment Variables，应使用 Environment Secrets。
+- 控制中心不批量导出 Cookie 值，只显示需要创建的 Secret 键名和本地格式检查结果。
+- 不要在静态页面中填写 GitHub PAT。涉及触发工作流、修改 Secrets 等写操作，直接通过 GitHub 官方页面完成。
 
-## 6. 手动触发测试（可选）
-
-> 建议执行此步骤，可以验证配置是否达到预期，此外首次fork后也需要手动触发后续才会自动执行
-
-仓库的工作流中添加了`workflow_dispatch`以便允许进行手动触发，在初次配置完成后可以通过手动触发Action来进行验证，操作方式如下图所示：
-
-![手动测试](images/屏幕截图%202026-02-14%20224614.png)
+Cookie 获取和好友匹配方式见：[SparkFlow 控制中心与账号配置说明](配置生成器使用.md)。

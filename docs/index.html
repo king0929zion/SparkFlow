@@ -1,256 +1,149 @@
-<html>
-
+<!doctype html>
+<html lang="zh-CN">
 <head>
-    <title>DouYinSparkFlow 配置生成器</title>
-    <meta charset="utf-8">
-    <link rel="icon" href="./static/favicon.ico" type="image/x-icon" />
-    <!-- 导入样式 -->
-    <link rel="stylesheet" href="./static/css/element-plus/index.css" />
-    <link rel="stylesheet" href="./static/css/main.css" />
-    <!-- 导入图标 -->
-    <script src="./static/js/icons-vue.js"></script>
-    <!-- 导入 Vue 3 -->
-    <script src="./static/js/vue.global.js"></script>
-    <!-- 导入组件库 -->
-    <script src="./static/js/element-plus.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#090b0a">
+  <meta name="color-scheme" content="dark">
+  <title>SparkFlow Control Center</title>
+  <link rel="icon" href="./static/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="./static/css/main.css">
 </head>
-
 <body>
-    <div id="app">
-        <el-container style="height: calc(100% - 40px);">
-            <el-header>
-                <div class="page-header">
-                    <img src="./static/favicon.ico" alt="Logo" class="logo" />
-                    <span class="text-large font-600 ml-3"> DouYinSparkFlow 配置生成器 </span>
-                </div>
-            </el-header>
-            <el-container style="height: calc(100% - 100px);">
-                <el-aside width="550px">
-                    <div>
-                        <el-card id="environment-variables">
-                            <template #header>
-                                <div class="card-header">
-                                    <span>Environment Variables</span>
-                                </div>
-                            </template>
-                            <div v-for="(value, key) in environmentVariables" :key="key" class="config-item">
-                                <span class="label">{{ key }}</span>
-                                <div class="action">
-                                    <el-button-group>
-                                        <el-button size="small" @click="copyValue(key)">
-                                            <template #icon>
-                                                <i class="icon"><svg t="1775398168345" class="icon"
-                                                        viewBox="0 0 1024 1024" version="1.1"
-                                                        xmlns="http://www.w3.org/2000/svg" p-id="12394">
-                                                        <path
-                                                            d="M618.666667 277.333333a128 128 0 0 1 128 128v384a128 128 0 0 1-128 128H234.666667a128 128 0 0 1-128-128V405.333333a128 128 0 0 1 128-128z m170.666666-170.666666a128 128 0 0 1 127.914667 123.2L917.333333 234.666667v384a128 128 0 0 1-123.2 127.914666L789.333333 746.666667v-85.333334a42.666667 42.666667 0 0 0 42.56-39.466666L832 618.666667V234.666667a42.666667 42.666667 0 0 0-39.466667-42.56L789.333333 192H405.333333a42.666667 42.666667 0 0 0-42.56 39.466667L362.666667 234.666667h-85.333334a128 128 0 0 1 123.2-127.914667L405.333333 106.666667h384z"
-                                                            fill="#5F6A7A" p-id="12395"></path>
-                                                    </svg></i>
-                                            </template>
-                                            变量名
-                                        </el-button>
-                                        <el-button size="small" @click="copyValue(value)">
-                                            <template #icon>
-                                                <i class="icon"><svg t="1775398168345" class="icon"
-                                                        viewBox="0 0 1024 1024" version="1.1"
-                                                        xmlns="http://www.w3.org/2000/svg" p-id="12394">
-                                                        <path
-                                                            d="M618.666667 277.333333a128 128 0 0 1 128 128v384a128 128 0 0 1-128 128H234.666667a128 128 0 0 1-128-128V405.333333a128 128 0 0 1 128-128z m170.666666-170.666666a128 128 0 0 1 127.914667 123.2L917.333333 234.666667v384a128 128 0 0 1-123.2 127.914666L789.333333 746.666667v-85.333334a42.666667 42.666667 0 0 0 42.56-39.466666L832 618.666667V234.666667a42.666667 42.666667 0 0 0-39.466667-42.56L789.333333 192H405.333333a42.666667 42.666667 0 0 0-42.56 39.466667L362.666667 234.666667h-85.333334a128 128 0 0 1 123.2-127.914667L405.333333 106.666667h384z"
-                                                            fill="#5F6A7A" p-id="12395"></path>
-                                                    </svg></i>
-                                            </template>
-                                            变量值
-                                        </el-button>
-                                        <el-button size="small" @click="openEnvDetails(key, value)">
-                                            <template #icon>
-                                                <i class="icon"><svg t="1775398487803" class="icon"
-                                                        viewBox="0 0 1024 1024" version="1.1"
-                                                        xmlns="http://www.w3.org/2000/svg" p-id="15338">
-                                                        <path
-                                                            d="M600.96 677.92a329.12 329.12 0 1 0-94.08 68.16L606.72 880a58.4 58.4 0 0 0 93.6-69.76zM112 449.12a252.16 252.16 0 1 1 252.64 251.52A252.48 252.48 0 0 1 112 449.12z m829.76-187.68a39.04 39.04 0 0 0 0-77.6H743.2a39.04 39.04 0 0 0 0 77.6h198.56z m41.76 181.76a38.72 38.72 0 0 0-27.52-11.2H790.56a39.04 39.04 0 0 0 0 77.6h165.44a38.56 38.56 0 0 0 38.72-38.4 39.36 39.36 0 0 0-11.2-27.52z m-115.2 236.32a39.04 39.04 0 0 0 0 77.6h82.4a39.04 39.04 0 1 0 7.84-77.6 32 32 0 0 0-7.84 0z"
-                                                            fill="#4592D8" p-id="15339"></path>
-                                                    </svg></i>
-                                            </template>
-                                            查看详情
-                                        </el-button>
-                                    </el-button-group>
-                                </div>
-                            </div>
-                        </el-card>
-
-                        <el-card id="environment-secrets">
-                            <template #header>
-                                <div class="card-header">
-                                    <span>Environment Secrets</span>
-                                </div>
-                            </template>
-                            <div v-for="(value, key) in environmentSecrets" :key="key" class="config-item">
-                                <span class="label">{{ key }}</span>
-                                <div class="action">
-                                    <el-button-group>
-                                        <el-button size="small" @click="copyValue(key)">
-                                            <template #icon>
-                                                <i class="icon"><svg t="1775398168345" class="icon"
-                                                        viewBox="0 0 1024 1024" version="1.1"
-                                                        xmlns="http://www.w3.org/2000/svg" p-id="12394" width="256"
-                                                        height="256">
-                                                        <path
-                                                            d="M618.666667 277.333333a128 128 0 0 1 128 128v384a128 128 0 0 1-128 128H234.666667a128 128 0 0 1-128-128V405.333333a128 128 0 0 1 128-128z m170.666666-170.666666a128 128 0 0 1 127.914667 123.2L917.333333 234.666667v384a128 128 0 0 1-123.2 127.914666L789.333333 746.666667v-85.333334a42.666667 42.666667 0 0 0 42.56-39.466666L832 618.666667V234.666667a42.666667 42.666667 0 0 0-39.466667-42.56L789.333333 192H405.333333a42.666667 42.666667 0 0 0-42.56 39.466667L362.666667 234.666667h-85.333334a128 128 0 0 1 123.2-127.914667L405.333333 106.666667h384z"
-                                                            fill="#5F6A7A" p-id="12395"></path>
-                                                    </svg></i>
-                                            </template>
-                                            变量名
-                                        </el-button>
-                                        <el-button size="small" @click="copyValue(value)">
-                                            <template #icon>
-                                                <i class="icon"><svg t="1775398168345" class="icon"
-                                                        viewBox="0 0 1024 1024" version="1.1"
-                                                        xmlns="http://www.w3.org/2000/svg" p-id="12394" width="256"
-                                                        height="256">
-                                                        <path
-                                                            d="M618.666667 277.333333a128 128 0 0 1 128 128v384a128 128 0 0 1-128 128H234.666667a128 128 0 0 1-128-128V405.333333a128 128 0 0 1 128-128z m170.666666-170.666666a128 128 0 0 1 127.914667 123.2L917.333333 234.666667v384a128 128 0 0 1-123.2 127.914666L789.333333 746.666667v-85.333334a42.666667 42.666667 0 0 0 42.56-39.466666L832 618.666667V234.666667a42.666667 42.666667 0 0 0-39.466667-42.56L789.333333 192H405.333333a42.666667 42.666667 0 0 0-42.56 39.466667L362.666667 234.666667h-85.333334a128 128 0 0 1 123.2-127.914667L405.333333 106.666667h384z"
-                                                            fill="#5F6A7A" p-id="12395"></path>
-                                                    </svg></i>
-                                            </template>
-                                            变量值
-                                        </el-button>
-                                        <el-button size="small" @click="openEnvDetails(key, value)">
-                                            <template #icon>
-                                                <i class="icon"><svg t="1775398487803" class="icon"
-                                                        viewBox="0 0 1024 1024" version="1.1"
-                                                        xmlns="http://www.w3.org/2000/svg" p-id="15338" width="256"
-                                                        height="256">
-                                                        <path
-                                                            d="M600.96 677.92a329.12 329.12 0 1 0-94.08 68.16L606.72 880a58.4 58.4 0 0 0 93.6-69.76zM112 449.12a252.16 252.16 0 1 1 252.64 251.52A252.48 252.48 0 0 1 112 449.12z m829.76-187.68a39.04 39.04 0 0 0 0-77.6H743.2a39.04 39.04 0 0 0 0 77.6h198.56z m41.76 181.76a38.72 38.72 0 0 0-27.52-11.2H790.56a39.04 39.04 0 0 0 0 77.6h165.44a38.56 38.56 0 0 0 38.72-38.4 39.36 39.36 0 0 0-11.2-27.52z m-115.2 236.32a39.04 39.04 0 0 0 0 77.6h82.4a39.04 39.04 0 1 0 7.84-77.6 32 32 0 0 0-7.84 0z"
-                                                            fill="#4592D8" p-id="15339"></path>
-                                                    </svg></i>
-                                            </template>
-                                            查看详情
-                                        </el-button>
-                                    </el-button-group>
-                                </div>
-                            </div>
-                        </el-card>
-
-                        <el-button style="width: 100%;" @click="copyEnvFile()">
-                            <template #icon>
-                                <i class="icon"><svg t="1775398168345" class="icon" viewBox="0 0 1024 1024"
-                                        version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="12394" width="256"
-                                        height="256">
-                                        <path
-                                            d="M618.666667 277.333333a128 128 0 0 1 128 128v384a128 128 0 0 1-128 128H234.666667a128 128 0 0 1-128-128V405.333333a128 128 0 0 1 128-128z m170.666666-170.666666a128 128 0 0 1 127.914667 123.2L917.333333 234.666667v384a128 128 0 0 1-123.2 127.914666L789.333333 746.666667v-85.333334a42.666667 42.666667 0 0 0 42.56-39.466666L832 618.666667V234.666667a42.666667 42.666667 0 0 0-39.466667-42.56L789.333333 192H405.333333a42.666667 42.666667 0 0 0-42.56 39.466667L362.666667 234.666667h-85.333334a128 128 0 0 1 123.2-127.914667L405.333333 106.666667h384z"
-                                            fill="#5F6A7A" p-id="12395"></path>
-                                    </svg></i>
-                            </template>
-                            复制 .env 配置文件
-                        </el-button>
-                    </div>
-                </el-aside>
-                <el-main>
-                    <div class="main">
-                        <div class="base-config-form">
-                            <div class="section-header">
-                                <span class="text-large font-600">基础配置</span>
-                            </div>
-                            <el-form :model="form" label-width="auto" style="max-width: 600px">
-                                <el-form-item label="代理地址（暂未实现）">
-                                    <el-input v-model="form.PROXY_ADDRESS" />
-                                </el-form-item>
-                                <el-form-item label="消息模板">
-                                    <el-input v-model="form.MESSAGE_TEMPLATE" :rows="4" type="textarea" />
-                                </el-form-item>
-                                <el-form-item label="一言类型">
-                                    <el-checkbox-group v-model="form.HITOKOTO_TYPES">
-                                        <el-checkbox value="动画">动画</el-checkbox>
-                                        <el-checkbox value="漫画">漫画</el-checkbox>
-                                        <el-checkbox value="游戏">游戏</el-checkbox>
-                                        <el-checkbox value="文学">文学</el-checkbox>
-                                        <el-checkbox value="原创">原创</el-checkbox>
-                                        <el-checkbox value="来自网络">来自网络</el-checkbox>
-                                        <el-checkbox value="影视">影视</el-checkbox>
-                                        <el-checkbox value="诗词">诗词</el-checkbox>
-                                        <el-checkbox value="哲学">哲学</el-checkbox>
-                                        <el-checkbox value="抖机灵">抖机灵</el-checkbox>
-                                        <el-checkbox value="其他">其他</el-checkbox>
-                                    </el-checkbox-group>
-                                </el-form-item>
-                                <el-form-item label="账号匹配模式">
-                                    <el-select v-model="form.MATCH_MODE" :options="match_mode_options" />
-                                </el-form-item>
-                                <el-form-item label="浏览器操作最长等待时间">
-                                    <el-input-number v-model="form.BROWSER_TIMEOUT" :step="1000" :precision="0"
-                                        :min="5000" :max="300000" />
-                                </el-form-item>
-                                <el-form-item label="好友列表等待时间">
-                                    <el-input-number v-model="form.FRIEND_LIST_WAIT_TIME" :step="1000" :precision="0"
-                                        :min="1000" :max="120000" />
-                                </el-form-item>
-                                <el-form-item label="任务重试次数">
-                                    <el-input-number v-model="form.TASK_RETRY_TIMES" :step="1" step-strictly
-                                        :precision="0" :min="1" :max="5" />
-                                </el-form-item>
-                                <el-form-item label="输出日志级别">
-                                    <el-select v-model="form.LOG_LEVEL" :options="log_level_options" />
-                                </el-form-item>
-                            </el-form>
-                        </div>
-                        <div class="account-config-form">
-                            <div class="section-header">
-                                <span class="text-large font-600">账户配置</span>
-                            </div>
-                            <div class="account-item" v-for="(account, index) in form.ACCOUNTS" :key="index">
-                                <el-form :model="form" label-width="auto" style="max-width: 600px">
-                                    <el-form-item label="用户名">
-                                        <el-input v-model="account.username" />
-                                    </el-form-item>
-                                    <el-form-item label="抖音号">
-                                        <el-input v-model="account.unique_id" />
-                                    </el-form-item>
-                                    <el-form-item label="Cookies【JSON格式】">
-                                        <el-input v-model="account.cookies" :rows="4" type="textarea" />
-                                    </el-form-item>
-                                    <el-form-item label="目标好友（回车）">
-                                        <el-input-tag v-model="account.targets" :tag-type="info" :tag-effect="plain"
-                                            placeholder="Please input">
-                                            <template #tag="{ value }">
-                                                <div class="flex items-center">
-                                                    <span>{{ value }}</span>
-                                                </div>
-                                            </template>
-                                        </el-input-tag>
-                                    </el-form-item>
-                                    <el-button type="danger"
-                                        :style="{ width: '100%', margin: '20px auto' , display: form.ACCOUNTS.length <= 1 ? 'none' : 'block'}"
-                                        @click="removeAccount(index)">移除</el-button>
-                                </el-form>
-
-                            </div>
-                            <div class="action">
-                                <el-button type="primary" style="width: 80%; margin: 20px auto;" @click="addAccount">
-                                    <template #icon>
-                                        <i class="icon"><svg t="1775401233918" class="icon" viewBox="0 0 1024 1024"
-                                                version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="16333"
-                                                width="256" height="256">
-                                                <path
-                                                    d="M105 480a8 8 0 0 1 8-8h799a8 8 0 0 1 8 8v64a8 8 0 0 1-8 8H113a8 8 0 0 1-8-8v-64z"
-                                                    fill="#ffffff" p-id="16334"></path>
-                                                <path
-                                                    d="M480 920a8 8 0 0 1-8-8V112a8 8 0 0 1 8-8h64a8 8 0 0 1 8 8v800a8 8 0 0 1-8 8h-64z"
-                                                    fill="#ffffff" p-id="16335"></path>
-                                            </svg>
-                                        </i>
-                                    </template>
-                                    添加账户
-                                </el-button>
-                            </div>
-
-                        </div>
-                    </div>
-                </el-main>
-            </el-container>
-        </el-container>
+  <header class="mast">
+    <a class="brand" href="#dashboard" data-panel="dashboard" aria-label="SparkFlow 控制中心首页">
+      <span class="brand-mark">SF</span>
+      <span class="brand-name">SparkFlow</span>
+      <span class="brand-sub">CONTROL CENTER</span>
+    </a>
+    <div class="mast-status" aria-live="polite">
+      <span class="status-dot" id="apiDot"></span>
+      <span id="apiLabel">检查 GitHub…</span>
     </div>
-</body>
-<script src="./static/js/main.js"></script>
+    <div class="mast-actions">
+      <button class="quiet-button" type="button" data-action="command">⌘K COMMAND</button>
+      <a class="quiet-button" href="https://github.com/king0929zion/SparkFlow" target="_blank" rel="noreferrer">GITHUB</a>
+    </div>
+  </header>
 
+  <div class="shell">
+    <aside class="rail" aria-label="主导航">
+      <nav class="rail-nav">
+        <button class="rail-link is-active" type="button" data-panel="dashboard"><span>01</span>运行态</button>
+        <button class="rail-link" type="button" data-panel="config"><span>02</span>基础配置</button>
+        <button class="rail-link" type="button" data-panel="accounts"><span>03</span>账号任务</button>
+        <button class="rail-link" type="button" data-panel="schedule"><span>04</span>定时计划</button>
+        <button class="rail-link" type="button" data-panel="deploy"><span>05</span>部署输出</button>
+      </nav>
+      <div class="rail-meta">
+        <p><span>repo</span><b>king0929zion/SparkFlow</b></p>
+        <p><span>runtime</span><b>GitHub Actions</b></p>
+        <p><span>secrets</span><b>memory only</b></p>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <section class="view is-active" id="dashboard" data-view>
+        <div class="page-head page-head-wide">
+          <div>
+            <p class="eyebrow">OPERATIONS / LIVE</p>
+            <h1>SparkFlow 的运行面板，数据从真实项目来。</h1>
+            <p class="lede">配置在浏览器本地生成；运行状态直接读取公开 GitHub Actions API。页面不会伪造执行成功、运行记录或 Cookie 状态。</p>
+          </div>
+          <div class="head-actions">
+            <a class="action-button action-primary" href="https://github.com/king0929zion/SparkFlow/actions" target="_blank" rel="noreferrer">前往 Actions</a>
+            <button class="action-button" type="button" data-action="validate">配置预检</button>
+          </div>
+        </div>
+
+        <section class="status-strip" aria-label="项目状态">
+          <article><span>WORKFLOW</span><b id="workflowState">读取中</b><small id="workflowHint">检查默认分支工作流</small></article>
+          <article><span>LATEST RUN</span><b id="latestRunState">—</b><small id="latestRunHint">等待 GitHub API</small></article>
+          <article><span>LOCAL CONFIG</span><b id="localCheck">0 / 4</b><small>账号 · Cookie · 目标 · 计划</small></article>
+          <article><span>NEXT PLAN</span><b id="nextPlan">09:07</b><small id="nextPlanZone">Asia/Shanghai</small></article>
+        </section>
+
+        <div class="ops-grid">
+          <section class="run-board" aria-labelledby="runsTitle">
+            <div class="section-head">
+              <div><p class="eyebrow">GITHUB ACTIONS</p><h2 id="runsTitle">最近运行</h2></div>
+              <button class="text-button" type="button" data-action="refreshGithub">刷新</button>
+            </div>
+            <div id="runList" class="run-list" aria-live="polite"><div class="empty-state">正在读取公开 Workflow Runs…</div></div>
+          </section>
+
+          <aside class="preflight" aria-labelledby="preflightTitle">
+            <div class="section-head">
+              <div><p class="eyebrow">PRE-FLIGHT</p><h2 id="preflightTitle">运行前检查</h2></div>
+              <span class="check-count" id="checkCount">0/4</span>
+            </div>
+            <ol id="checkList" class="check-list"></ol>
+            <p class="fine-print">Cookie 只在当前页面内存里参与校验。刷新页面后会清空，不写入 localStorage。</p>
+          </aside>
+        </div>
+
+        <section class="integration-map" aria-labelledby="integrationTitle">
+          <div class="section-head"><div><p class="eyebrow">PROJECT CONTRACT</p><h2 id="integrationTitle">Web UI 与 Python 配置一一对应</h2></div></div>
+          <div class="contract-table">
+            <div><span>MESSAGE_TEMPLATE</span><code>config.messageTemplate</code></div>
+            <div><span>MATCH_MODE</span><code>config.matchMode</code></div>
+            <div><span>TASKS</span><code>get_userData()</code></div>
+            <div><span>COOKIES_&lt;UNIQUE_ID&gt;</span><code>Playwright context cookies</code></div>
+            <div><span>BROWSER_TIMEOUT</span><code>page / context timeout</code></div>
+            <div><span>TASK_RETRY_TIMES</span><code>task retry count</code></div>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" id="config" data-view>
+        <div class="page-head">
+          <div><p class="eyebrow">CONFIG / ENVIRONMENT VARIABLES</p><h1>基础配置</h1><p class="lede">字段名、默认值和 Python 的 <code>utils/config.py</code> 保持一致。所有选择控件为自定义组件。</p></div>
+          <button class="action-button" type="button" data-action="saveDraft">保存非敏感草稿</button>
+        </div>
+        <form class="config-form" id="configForm" autocomplete="off">
+          <label class="field field-span-2"><span>MESSAGE_TEMPLATE</span><small>代码按字面量 <code>\n</code> 分行发送；复制到 GitHub 时会自动转换。</small><textarea id="messageTemplate" rows="5">[盖瑞]今日火花[加一]\n—— [右边] 每日一言 [左边] ——\n[API]</textarea></label>
+          <div class="field"><span>MATCH_MODE</span><small>好友匹配策略</small><div class="segmented" id="matchMode" role="group" aria-label="好友匹配策略"><button class="is-selected" type="button" data-value="nickname">nickname</button><button type="button" data-value="short_id">short_id</button></div></div>
+          <div class="field"><span>LOG_LEVEL</span><small>运行日志详细程度</small><div class="choice" data-choice="logLevel"><button class="choice-trigger" type="button" aria-expanded="false">INFO</button><div class="choice-menu" role="listbox"><button type="button" data-value="DEBUG">DEBUG</button><button class="is-selected" type="button" data-value="INFO">INFO</button><button type="button" data-value="WARNING">WARNING</button><button type="button" data-value="ERROR">ERROR</button></div></div></div>
+          <label class="field"><span>BROWSER_TIMEOUT</span><small>Playwright 最大等待时间，毫秒</small><div class="unit-input"><input id="browserTimeout" inputmode="numeric" value="120000"><span>ms</span></div></label>
+          <label class="field"><span>FRIEND_LIST_WAIT_TIME</span><small>好友列表等待时间，毫秒</small><div class="unit-input"><input id="friendListTimeout" inputmode="numeric" value="2000"><span>ms</span></div></label>
+          <div class="field"><span>TASK_RETRY_TIMES</span><small>单次任务重试次数</small><div class="stepper"><button type="button" data-step="-1" aria-label="减少重试次数">−</button><input id="taskRetryTimes" inputmode="numeric" value="3" aria-label="任务重试次数"><button type="button" data-step="1" aria-label="增加重试次数">+</button></div></div>
+          <label class="field"><span>PROXY_ADDRESS</span><small>原项目暂未实现，可留空</small><input id="proxyAddress" placeholder="留空"></label>
+          <div class="field field-span-2"><span>HITOKOTO_TYPES</span><small>用于 <code>[API]</code> 每日一言替换</small><div class="chip-set" id="hitokotoTypes" role="group" aria-label="一言分类"><button type="button">动画</button><button type="button">漫画</button><button type="button">游戏</button><button class="is-selected" type="button">文学</button><button type="button">原创</button><button type="button">来自网络</button><button class="is-selected" type="button">影视</button><button class="is-selected" type="button">诗词</button><button class="is-selected" type="button">哲学</button><button type="button">抖机灵</button><button type="button">其他</button></div></div>
+        </form>
+      </section>
+
+      <section class="view" id="accounts" data-view>
+        <div class="page-head"><div><p class="eyebrow">TASKS / SECRETS</p><h1>账号任务</h1><p class="lede">每张账号卡最终生成一个 <code>TASKS</code> 条目和一个 <code>COOKIES_&lt;UNIQUE_ID&gt;</code> Secret。</p></div><button class="action-button action-primary" type="button" data-action="addAccount">新增账号</button></div>
+        <div id="accountList" class="account-list"></div>
+      </section>
+
+      <section class="view" id="schedule" data-view>
+        <div class="page-head"><div><p class="eyebrow">SCHEDULE / WORKFLOW</p><h1>定时计划</h1><p class="lede">这里生成与 <code>.github/workflows/schedule.yml</code> 一致的 cron + timezone 片段。静态页面不会假装已经写回仓库。</p></div><a class="action-button" href="https://github.com/king0929zion/SparkFlow/edit/main/.github/workflows/schedule.yml" target="_blank" rel="noreferrer">编辑 workflow</a></div>
+        <div class="schedule-layout">
+          <section class="schedule-editor">
+            <div class="field"><span>TIMEZONE</span><small>GitHub Actions 时区</small><div class="choice" data-choice="timezone"><button class="choice-trigger" type="button" aria-expanded="false">Asia/Shanghai</button><div class="choice-menu" role="listbox"><button class="is-selected" type="button" data-value="Asia/Shanghai">Asia/Shanghai</button><button type="button" data-value="America/Los_Angeles">America/Los_Angeles</button><button type="button" data-value="UTC">UTC</button></div></div></div>
+            <div class="field"><span>LOCAL TIME</span><small>计划执行时间</small><div class="time-input"><input id="scheduleHour" value="09" inputmode="numeric" maxlength="2"><b>:</b><input id="scheduleMinute" value="07" inputmode="numeric" maxlength="2"></div></div>
+            <div class="field field-span-2"><span>RUN DAYS</span><small>默认每天执行</small><div class="day-set" id="scheduleDays"><button class="is-selected" type="button" data-day="1">MON</button><button class="is-selected" type="button" data-day="2">TUE</button><button class="is-selected" type="button" data-day="3">WED</button><button class="is-selected" type="button" data-day="4">THU</button><button class="is-selected" type="button" data-day="5">FRI</button><button class="is-selected" type="button" data-day="6">SAT</button><button class="is-selected" type="button" data-day="0">SUN</button></div></div>
+          </section>
+          <section class="workflow-preview"><div class="section-head section-head-inline"><div><p class="eyebrow">EXACT OUTPUT</p><h2>schedule.yml 片段</h2></div><button class="text-button" type="button" data-action="copySchedule">复制</button></div><pre id="schedulePreview"></pre><p class="fine-print">生成后仍需在 GitHub 编辑并提交 workflow 文件，新的定时配置才会真正生效。</p></section>
+        </div>
+      </section>
+
+      <section class="view" id="deploy" data-view>
+        <div class="page-head"><div><p class="eyebrow">DEPLOY / USER-DATA</p><h1>部署输出</h1><p class="lede">对应 GitHub Environment <code>user-data</code>。Variables 可以直接复制；Secrets 保留为逐账号人工粘贴，避免静态页面批量导出敏感值。</p></div><a class="action-button action-primary" href="https://github.com/king0929zion/SparkFlow/settings/environments" target="_blank" rel="noreferrer">打开 Environments</a></div>
+        <div class="deploy-grid">
+          <section><div class="section-head section-head-inline"><div><p class="eyebrow">ENVIRONMENT VARIABLES</p><h2>变量</h2></div><button class="text-button" type="button" data-action="copyVariables">复制全部</button></div><div id="variablesOutput" class="output-list"></div></section>
+          <section><div class="section-head"><div><p class="eyebrow">ENVIRONMENT SECRETS</p><h2>Secrets</h2></div></div><div id="secretsOutput" class="output-list"></div></section>
+        </div>
+        <section class="deploy-guide"><div><b>01</b><span>在 GitHub 创建或打开 <code>user-data</code> Environment。</span></div><div><b>02</b><span>把左侧 Variables 按键名写入 Environment variables。</span></div><div><b>03</b><span>把每个账号 Cookie JSON 写入对应 <code>COOKIES_*</code> Environment secret。</span></div><div><b>04</b><span>回到 Actions 手动运行一次，确认账号 Cookie 与目标好友都有效。</span></div></section>
+      </section>
+    </main>
+  </div>
+
+  <nav class="mobile-nav" aria-label="移动端导航"><button class="is-active" type="button" data-panel="dashboard"><span>01</span>运行</button><button type="button" data-panel="config"><span>02</span>配置</button><button type="button" data-panel="accounts"><span>03</span>账号</button><button type="button" data-panel="schedule"><span>04</span>定时</button><button type="button" data-panel="deploy"><span>05</span>部署</button></nav>
+  <div class="command-layer" id="commandLayer" hidden><button class="command-backdrop" type="button" data-action="closeCommand" aria-label="关闭命令面板"></button><section class="command-panel" role="dialog" aria-modal="true" aria-labelledby="commandTitle"><div class="command-input-wrap"><span>&gt;</span><input id="commandInput" placeholder="输入命令或页面名称" autocomplete="off"></div><div class="command-list" id="commandList" role="listbox"></div><p id="commandTitle" class="command-hint">↑↓ 选择 · Enter 执行 · Esc 关闭</p></section></div>
+  <div id="toastRegion" class="toast-region" aria-live="polite"></div>
+  <input id="importFile" type="file" accept="application/json" hidden>
+  <script src="./static/js/main.js"></script>
+</body>
 </html>

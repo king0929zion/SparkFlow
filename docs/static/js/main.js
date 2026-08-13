@@ -1,188 +1,40 @@
-const { createApp, ref, reactive, computed } = Vue;
-const app = createApp({
-  setup() {
-    const message = ref("Hello vue!");
-
-    const match_mode_options = [
-      {
-        id: "nickname",
-        label: "昵称",
-        value: "nickname",
-      },
-      {
-        id: "short_id",
-        label: "抖音号",
-        value: "short_id",
-      },
-    ];
-
-    const log_level_options = [
-      {
-        id: "Debug",
-        label: "Debug",
-        value: "Debug",
-      },
-      {
-        id: "Info",
-        label: "Info",
-        value: "Info",
-      },
-      {
-        id: "Warning",
-        label: "Warning",
-        value: "Warning",
-      },
-      {
-        id: "Error",
-        label: "Error",
-        value: "Error",
-      },
-    ];
-
-    // do not use same name with ref
-    const form = reactive({
-      PROXY_ADDRESS: "",
-      MESSAGE_TEMPLATE:
-        "[盖瑞]今日火花[加一]\n—— [右边] 每日一言 [左边] ——\n[API]",
-      HITOKOTO_TYPES: ["文学", "影视", "诗词", "哲学"],
-      MATCH_MODE: "nickname",
-      BROWSER_TIMEOUT: 120000,
-      FRIEND_LIST_WAIT_TIME: 2000,
-      TASK_RETRY_TIMES: 3,
-      LOG_LEVEL: "Info",
-      ACCOUNTS: [
-        {
-          username: "user1",
-          unique_id: "12345678905",
-          cookies: "cookie1",
-          targets: ["friend1", "friend2"],
-        },
-      ],
-    });
-
-    const environmentVariables = computed(() => {
-      return {
-        PROXY_ADDRESS: form.PROXY_ADDRESS,
-        MESSAGE_TEMPLATE: form.MESSAGE_TEMPLATE,
-        HITOKOTO_TYPES: form.HITOKOTO_TYPES,
-        MATCH_MODE: form.MATCH_MODE,
-        BROWSER_TIMEOUT: form.BROWSER_TIMEOUT,
-        FRIEND_LIST_WAIT_TIME: form.FRIEND_LIST_WAIT_TIME,
-        TASK_RETRY_TIMES: form.TASK_RETRY_TIMES,
-        LOG_LEVEL: form.LOG_LEVEL,
-        TASKS: form.ACCOUNTS.map((account) => ({
-          username: account.username,
-          unique_id: account.unique_id,
-          targets: account.targets,
-        })),
-      };
-    });
-
-    const environmentSecrets = computed(() => {
-      return form.ACCOUNTS.reduce((acc, account, index) => {
-        acc[`COOKIES_${String(account.unique_id || "").toUpperCase()}`] = account.cookies;
-        return acc;
-      }, {});
-    });
-
-    const copyValue = (value) => {
-      if (typeof value === "object") {
-        value = JSON.stringify(value);
-      } else if (typeof value === "number") {
-        value = value.toString();
-      } else {
-        value = value.replace(/\n/g, "\\n");
-      }
-      navigator.clipboard.writeText(value).then(
-        () => {
-          ElementPlus.ElMessage.success("已复制到剪贴板");
-        },
-        (err) => {
-          ElementPlus.ElMessage.error("复制失败: " + err);
-        }
-      );
-    };
-
-    const copyEnvFile = () => {
-      // 合并两个对象
-      const allVars = {
-        ...environmentVariables.value,
-        ...environmentSecrets.value,
-      };
-      // 生成 .env 格式字符串
-      const item = Object.entries(allVars)
-        .map(([key, value]) => {
-          if (typeof value === "object") {
-            value = JSON.stringify(value);
-          } else if (typeof value === "number") {
-            value = value.toString();
-          } else {
-            value = value.replace(/\n/g, "\\n");
-          }
-          return `${key}=${value}`;
-        })
-        .join("\n");
-      navigator.clipboard.writeText(item).then(
-        () => {
-          ElementPlus.ElMessage.success("已复制 .env 配置文件到剪贴板");
-        },
-        (err) => {
-          ElementPlus.ElMessage.error("复制失败: " + err);
-        }
-      );
-    };
-
-    const openEnvDetails = (name, value) => {
-      console.log(
-        "openEnvDetails called with name:",
-        name,
-        "value:",
-        value,
-        typeof value
-      );
-      if (typeof value === "object") {
-        value = JSON.stringify(value, null, 2);
-        console.log("value is object, stringify it:", value);
-      }
-
-      ElementPlus.ElMessageBox.alert(
-        "<div style='text-align: left; white-space: pre-wrap; word-break: break-all; width: 400px; max-height: 200px; overflow: auto;'>" +
-          value +
-          "</div>",
-        `${name} 详情`,
-        {
-          dangerouslyUseHTMLString: true,
-        }
-      );
-    };
-
-    const addAccount = () => {
-      form.ACCOUNTS.push({
-        username: "",
-        unique_id: "",
-        cookies: "",
-        targets: [],
-      });
-    };
-
-    const removeAccount = (index) => {
-      form.ACCOUNTS.splice(index, 1);
-    };
-
-    return {
-      match_mode_options,
-      log_level_options,
-      message,
-      form,
-      environmentVariables,
-      environmentSecrets,
-      copyValue,
-      copyEnvFile,
-      openEnvDetails,
-      addAccount,
-      removeAccount,
-    };
-  },
-});
-app.use(ElementPlus);
-app.mount("#app");
+(()=>{'use strict';
+const REPO='king0929zion/SparkFlow',REPO_URL=`https://github.com/${REPO}`,API=`https://api.github.com/repos/${REPO}`,API_VER='2026-03-10',DRAFT='sparkflow-control-center-v4',OLD='sparkflow-draft-v31';
+const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)],esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const state={matchMode:'nickname',logLevel:'INFO',timezone:'Asia/Shanghai',days:['0','1','2','3','4','5','6'],accounts:[{username:'',unique_id:'',cookies:'',targets:[]}],github:{workflows:[],runs:[],error:''},cmd:0};
+const clamp=(v,a,b,d)=>{v=parseInt(v,10);return Number.isNaN(v)?d:Math.min(b,Math.max(a,v))};
+function toast(text,tone=''){const n=document.createElement('div');n.className=`toast${tone?` is-${tone}`:''}`;n.textContent=text;$('#toastRegion').append(n);setTimeout(()=>n.remove(),2400)}
+function show(id){$$('[data-view]').forEach(v=>v.classList.toggle('is-active',v.id===id));$$('[data-panel]').forEach(v=>v.classList.toggle('is-active',v.dataset.panel===id));scrollTo({top:0,behavior:'auto'});closeChoices()}
+function closeChoices(except){$$('.choice.is-open').forEach(c=>{if(c!==except){c.classList.remove('is-open');$('.choice-trigger',c)?.setAttribute('aria-expanded','false')}})}
+const hitokoto=()=>$$('#hitokotoTypes .is-selected').map(x=>x.textContent.trim());
+const tasks=()=>state.accounts.map(a=>({username:a.username.trim()||'未知用户',unique_id:a.unique_id.trim(),targets:a.targets.map(x=>x.trim()).filter(Boolean)}));
+function vars(){return{PROXY_ADDRESS:$('#proxyAddress').value.trim(),MESSAGE_TEMPLATE:$('#messageTemplate').value.replace(/\r?\n/g,'\\n'),HITOKOTO_TYPES:JSON.stringify(hitokoto()),MATCH_MODE:state.matchMode,BROWSER_TIMEOUT:String(clamp($('#browserTimeout').value,1,3600000,120000)),FRIEND_LIST_WAIT_TIME:String(clamp($('#friendListTimeout').value,1,600000,2000)),TASK_RETRY_TIMES:String(clamp($('#taskRetryTimes').value,1,20,3)),LOG_LEVEL:state.logLevel,TASKS:JSON.stringify(tasks())}}
+const secret=a=>a.unique_id.trim()?`COOKIES_${a.unique_id.trim().toUpperCase()}`:'COOKIES_<UNIQUE_ID>';
+function cookie(raw){if(!raw.trim())return{level:'missing',label:'未填写',detail:'运行前必须提供 Cookie JSON'};let p;try{p=JSON.parse(raw)}catch(e){return{level:'invalid',label:'JSON 无效',detail:e.message}}if(!Array.isArray(p)||!p.length)return{level:'invalid',label:'应为非空数组',detail:'Cookie-Editor 应导出 JSON 数组'};const malformed=p.filter(c=>!c||typeof c!=='object'||typeof c.name!=='string'||typeof c.value!=='string'||!((typeof c.url==='string'&&c.url)||(typeof c.domain==='string'&&c.domain&&typeof c.path==='string')));const dy=p.filter(c=>/douyin\.com/i.test(String(c.domain||c.url||'')));if(malformed.length)return{level:'warning',label:'需检查',detail:`${malformed.length} 条 Cookie 缺少 Playwright 常用字段`,parsed:p};if(!dy.length)return{level:'warning',label:'域名可疑',detail:'未发现 douyin.com 域名 Cookie',parsed:p};return{level:'valid',label:`${p.length} 条有效`,detail:'JSON 与 Playwright 常用字段检查通过',parsed:p}}
+function schedule(){const h=clamp($('#scheduleHour').value,0,23,9),m=clamp($('#scheduleMinute').value,0,59,7),ds=[...state.days].sort((a,b)=>+a-+b),day=ds.length===7?'*':ds.join(',');return{h,m,cron:`${m} ${h} * * ${day}`,timezone:state.timezone,valid:ds.length>0}}
+function renderSchedule(){const s=schedule();$('#scheduleHour').value=String(s.h).padStart(2,'0');$('#scheduleMinute').value=String(s.m).padStart(2,'0');$('#schedulePreview').textContent=`on:\n  workflow_dispatch:\n  schedule:\n    - cron: "${s.cron}"\n      timezone: "${s.timezone}"`;$('#nextPlan').textContent=`${String(s.h).padStart(2,'0')}:${String(s.m).padStart(2,'0')}`;$('#nextPlanZone').textContent=s.timezone}
+function checks(){const a=state.accounts.length>0&&state.accounts.every(x=>x.unique_id.trim()),c=state.accounts.length>0&&state.accounts.every(x=>cookie(x.cookies).level==='valid'),t=state.accounts.length>0&&state.accounts.every(x=>x.targets.length&&x.targets.every(Boolean)),s=schedule().valid;return[[a,'账号与 UNIQUE_ID',a?'TASKS 可以生成':'每个账号都需要 UNIQUE_ID'],[c,'Cookies',c?'所有账号 Cookie 结构检查通过':'填写并检查每个账号 Cookie JSON'],[t,'目标好友',t?'每个账号至少有一个目标':'每个账号至少添加一个目标好友'],[s,'定时计划',s?'cron 可以生成':'至少选择一个执行日']]}
+function renderChecks(){const c=checks(),n=c.filter(x=>x[0]).length;$('#localCheck').textContent=`${n} / 4`;$('#checkCount').textContent=`${n}/4`;$('#checkList').innerHTML=c.map(x=>`<li class="${x[0]?'is-ok':'is-warn'}"><b>${x[0]?'✓':'!'}</b><span>${esc(x[1])}<small>${esc(x[2])}</small></span></li>`).join('')}
+function renderAccounts(){const root=$('#accountList');if(!state.accounts.length){root.innerHTML='<div class="empty-state">还没有账号任务。新增账号后会生成 TASKS 与对应 Secret 键名。</div>';renderDerived();return}root.innerHTML=state.accounts.map((a,i)=>{const ck=cookie(a.cookies),cls=ck.level==='valid'?'is-valid':ck.level==='invalid'?'is-invalid':ck.level==='warning'?'is-warning':'';return`<article class="account-card" data-account="${i}"><div class="account-top"><div class="account-title"><p>ACCOUNT ${String(i+1).padStart(2,'0')}</p><h2>${esc(a.username.trim()||'未命名账号')} <span class="secret-key">${esc(secret(a))}</span></h2></div><div class="account-actions"><button class="micro-button" type="button" data-format-cookie="${i}">格式化 JSON</button><button class="danger-button" type="button" data-remove-account="${i}">删除账号</button></div></div><div class="account-fields"><label class="field"><span>USERNAME</span><small>仅用于日志和账号标识</small><input data-account-field="username" data-index="${i}" value="${esc(a.username)}" placeholder="例如：主账号"></label><label class="field"><span>UNIQUE_ID</span><small>决定 Secret 键名，必须唯一且不能为空</small><input data-account-field="unique_id" data-index="${i}" value="${esc(a.unique_id)}" placeholder="抖音号或稳定标识"></label><label class="field full"><span>COOKIES / JSON</span><small>${esc(ck.detail)}</small><div class="cookie-wrap"><span class="cookie-state ${cls}">${esc(ck.label)}</span><textarea class="cookie-input" data-account-field="cookies" data-index="${i}" placeholder="粘贴 Cookie-Editor 导出的 JSON 数组。页面不会持久化。">${esc(a.cookies)}</textarea></div></label><div class="field full"><span>TARGETS</span><small>与 Python task.targets 数组直接对应</small><div class="target-editor"><input data-target-input="${i}" placeholder="输入好友昵称或抖音号后回车"><button class="action-button" type="button" data-add-target="${i}">添加目标</button></div><div class="target-list">${a.targets.map((t,j)=>`<span class="target-chip">${esc(t)}<button type="button" data-remove-target="${i}:${j}">×</button></span>`).join('')||'<span class="fine-print">暂无目标好友</span>'}</div></div></div></article>`}).join('');renderDerived()}
+function renderOutput(){const v=vars();$('#variablesOutput').innerHTML=Object.entries(v).map(([k,x])=>`<div class="output-row"><b>${esc(k)}</b><code>${esc(x)}</code><button class="text-button" type="button" data-copy-variable="${esc(k)}">复制</button></div>`).join('');$('#secretsOutput').innerHTML=state.accounts.length?state.accounts.map(a=>{const c=cookie(a.cookies);return`<div class="output-row"><b>${esc(secret(a))}</b><code>${esc(a.username.trim()||'未命名账号')} · ${esc(c.detail)}</code><span class="output-state ${c.level==='valid'?'is-ok':'is-warn'}">${esc(c.label)}</span></div>`}).join(''):'<div class="empty-state">新增账号后会显示需要创建的 Environment Secret 键名。</div>'}
+function renderDerived(){renderSchedule();renderChecks();renderOutput()}
+function validate(showToast=false){const issues=[],ids=new Set;if(!state.accounts.length)issues.push('至少需要一个账号');state.accounts.forEach((a,i)=>{const id=a.unique_id.trim().toUpperCase();if(!id)issues.push(`账号 ${i+1} 缺少 UNIQUE_ID`);else if(ids.has(id))issues.push(`账号 ${i+1} UNIQUE_ID 重复`);else ids.add(id);const c=cookie(a.cookies);if(c.level!=='valid')issues.push(`账号 ${i+1} Cookie：${c.label}`);if(!a.targets.length)issues.push(`账号 ${i+1} 没有目标好友`)});if(!hitokoto().length)issues.push('HITOKOTO_TYPES 至少选择一项');if(!schedule().valid)issues.push('至少选择一个执行日');renderDerived();if(showToast)toast(issues.length?`预检发现 ${issues.length} 项需要处理`:'配置预检通过',issues.length?'warning':'success');return{ok:!issues.length,issues}}
+async function copy(text,msg='已复制'){try{await navigator.clipboard.writeText(text);toast(msg,'success');return true}catch{toast('复制失败，请手动选择内容','error');return false}}
+function saveDraft(show=false){try{localStorage.setItem(DRAFT,JSON.stringify({matchMode:state.matchMode,logLevel:state.logLevel,timezone:state.timezone,days:state.days,accounts:state.accounts.map(a=>({username:a.username,unique_id:a.unique_id,targets:a.targets})),messageTemplate:$('#messageTemplate').value,browserTimeout:$('#browserTimeout').value,friendListTimeout:$('#friendListTimeout').value,taskRetryTimes:$('#taskRetryTimes').value,proxyAddress:$('#proxyAddress').value,scheduleHour:$('#scheduleHour').value,scheduleMinute:$('#scheduleMinute').value,hitokotoTypes:hitokoto()}));if(show)toast('已保存非敏感草稿，Cookies 未保存','success');return true}catch{if(show)toast('浏览器禁止本地存储','error');return false}}
+function choiceSet(key,value){const c=$(`.choice[data-choice="${key}"]`);if(!c)return;$$('.choice-menu button',c).forEach(x=>x.classList.toggle('is-selected',x.dataset.value===value));$('.choice-trigger',c).textContent=value}
+function loadDraft(){try{const raw=localStorage.getItem(DRAFT)||localStorage.getItem(OLD);if(!raw)return;const d=JSON.parse(raw);state.matchMode=d.matchMode||d.match||state.matchMode;state.logLevel=String(d.logLevel||d.log||state.logLevel).toUpperCase();state.timezone=d.timezone||d.tz||state.timezone;state.days=Array.isArray(d.days)&&d.days.length?d.days.map(String):state.days;if(Array.isArray(d.accounts)&&d.accounts.length)state.accounts=d.accounts.map(a=>({username:a.username||'',unique_id:a.unique_id||'',cookies:'',targets:Array.isArray(a.targets)?a.targets:[]}));$('#messageTemplate').value=d.messageTemplate||d.message||$('#messageTemplate').value;$('#browserTimeout').value=d.browserTimeout||d.browser||'120000';$('#friendListTimeout').value=d.friendListTimeout||d.friend||'2000';$('#taskRetryTimes').value=d.taskRetryTimes||d.retry||'3';$('#proxyAddress').value=d.proxyAddress||d.proxy||'';$('#scheduleHour').value=d.scheduleHour||d.hour||'09';$('#scheduleMinute').value=d.scheduleMinute||d.minute||'07';$$('#matchMode button').forEach(x=>x.classList.toggle('is-selected',x.dataset.value===state.matchMode));choiceSet('logLevel',state.logLevel);choiceSet('timezone',state.timezone);$$('#scheduleDays button').forEach(x=>x.classList.toggle('is-selected',state.days.includes(x.dataset.day)));const types=d.hitokotoTypes||d.hitokoto;if(Array.isArray(types))$$('#hitokotoTypes button').forEach(x=>x.classList.toggle('is-selected',types.includes(x.textContent.trim())))}catch{}}
+const fmt=d=>{const x=new Date(d);return Number.isNaN(x.getTime())?'—':new Intl.DateTimeFormat('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(x)};
+function runStatus(r){if(r.status&&r.status!=='completed')return['RUNNING','is-running'];if(r.conclusion==='success')return['SUCCESS','is-success'];if(['failure','timed_out','cancelled','action_required'].includes(r.conclusion))return[String(r.conclusion).toUpperCase(),'is-failure'];return[String(r.conclusion||r.status||'UNKNOWN').toUpperCase(),'is-neutral']}
+function renderGithub(){const {workflows,runs,error}=state.github,dot=$('#apiDot');dot.className='status-dot';if(error){dot.classList.add('is-error');$('#apiLabel').textContent='GitHub API 不可用';$('#workflowState').textContent='无法读取';$('#workflowHint').textContent=error;$('#latestRunState').textContent='—';$('#latestRunHint').textContent='稍后可手动刷新';$('#runList').innerHTML=`<div class="empty-state">GitHub API 暂时不可用：${esc(error)}。页面不会用模拟数据替代。</div>`;return}dot.classList.add(workflows.length?'is-success':'is-warning');$('#apiLabel').textContent=workflows.length?'GitHub API LIVE':'GitHub API LIVE · 无工作流';const w=workflows.find(x=>String(x.path||'').endsWith('/schedule.yml'))||workflows[0];$('#workflowState').textContent=w?String(w.state||'active').toUpperCase():'未索引';$('#workflowHint').textContent=w?(w.name||w.path):'API 返回 0 个工作流，Fork 的 Actions 可能尚未启用';if(runs.length){const latest=runs[0],[label]=runStatus(latest);$('#latestRunState').textContent=label;$('#latestRunHint').textContent=`${latest.event||'event'} · #${latest.run_number||'—'} · ${fmt(latest.created_at)}`;$('#runList').innerHTML=runs.map(r=>{const [lab,cls]=runStatus(r);return`<div class="run-row"><a href="${esc(r.html_url||`${REPO_URL}/actions`)}" target="_blank" rel="noreferrer"><span class="run-state ${cls}">${esc(lab)}</span><span class="run-title">${esc(r.name||r.display_title||'Workflow run')}</span><span class="run-meta">${esc(r.event||'event')} · ${esc(r.head_branch||'—')} · #${esc(r.run_number||'—')}</span><span class="run-time">${esc(fmt(r.created_at))}</span></a></div>`}).join('')}else{$('#latestRunState').textContent='暂无记录';$('#latestRunHint').textContent='公开 API 返回 0 条 Workflow Runs';$('#runList').innerHTML='<div class="empty-state">当前仓库还没有 GitHub Actions 运行记录。首次启用 Actions 并手动运行后，这里会显示真实结果。</div>'}}
+async function api(path){const r=await fetch(API+path,{headers:{Accept:'application/vnd.github+json','X-GitHub-Api-Version':API_VER}});if(!r.ok)throw new Error(r.headers.get('x-ratelimit-remaining')==='0'?'GitHub API 未认证速率额度已用完':`GitHub API HTTP ${r.status}`);return r.json()}
+async function loadGithub(show=false){const b=$('[data-action="refreshGithub"]');if(b){b.disabled=true;b.textContent='刷新中…'}state.github.error='';try{const [w,r]=await Promise.all([api('/actions/workflows?per_page=100'),api('/actions/runs?per_page=6')]);state.github.workflows=Array.isArray(w.workflows)?w.workflows:[];state.github.runs=Array.isArray(r.workflow_runs)?r.workflow_runs:[];if(show)toast('GitHub Actions 状态已刷新','success')}catch(e){state.github.error=e.message||'网络请求失败';if(show)toast(state.github.error,'error')}finally{renderGithub();if(b){b.disabled=false;b.textContent='刷新'}}}
+const commands=[['运行态','dashboard',()=>show('dashboard')],['基础配置','config',()=>show('config')],['账号任务','accounts',()=>show('accounts')],['定时计划','schedule',()=>show('schedule')],['部署输出','deploy',()=>show('deploy')],['配置预检','validate',()=>validate(true)],['刷新 GitHub 状态','github refresh',()=>loadGithub(true)],['保存非敏感草稿','save draft',()=>saveDraft(true)],['打开 GitHub Actions','actions',()=>open(`${REPO_URL}/actions`,'_blank','noopener')],['打开 GitHub Environments','environment',()=>open(`${REPO_URL}/settings/environments`,'_blank','noopener')]];
+function cmdItems(){const q=$('#commandInput').value.trim().toLowerCase();return commands.filter(x=>!q||`${x[0]} ${x[1]}`.toLowerCase().includes(q))}
+function renderCmd(){const a=cmdItems();if(state.cmd>=a.length)state.cmd=Math.max(0,a.length-1);$('#commandList').innerHTML=a.length?a.map((x,i)=>`<button class="command-item ${i===state.cmd?'is-active':''}" type="button" data-command-index="${i}"><span>${esc(x[0])}</span><small>${esc(x[1])}</small></button>`).join(''):'<div class="empty-state">没有匹配命令</div>'}
+function openCmd(){state.cmd=0;$('#commandLayer').hidden=false;$('#commandInput').value='';renderCmd();setTimeout(()=>$('#commandInput').focus())}function closeCmd(){$('#commandLayer').hidden=true}function execCmd(i){const x=cmdItems()[i];if(x){closeCmd();x[2]()}}
+document.addEventListener('click',e=>{const p=e.target.closest('[data-panel]');if(p){e.preventDefault();show(p.dataset.panel);return}const a=e.target.closest('[data-action]');if(a){const x=a.dataset.action;if(x==='command')openCmd();if(x==='closeCommand')closeCmd();if(x==='validate'){const r=validate(true);a.dataset.state=r.ok?'success':'error';setTimeout(()=>delete a.dataset.state,1500)}if(x==='refreshGithub')loadGithub(true);if(x==='saveDraft')saveDraft(true);if(x==='addAccount'){state.accounts.push({username:'',unique_id:'',cookies:'',targets:[]});renderAccounts()}if(x==='copySchedule')copy($('#schedulePreview').textContent,'workflow 片段已复制');if(x==='copyVariables')copy(Object.entries(vars()).map(([k,v])=>`${k}=${v}`).join('\n'),'Environment Variables 已复制');return}const mm=e.target.closest('#matchMode [data-value]');if(mm){state.matchMode=mm.dataset.value;$$('#matchMode button').forEach(x=>x.classList.toggle('is-selected',x===mm));renderDerived();return}const chip=e.target.closest('#hitokotoTypes button');if(chip){chip.classList.toggle('is-selected');renderDerived();return}const day=e.target.closest('#scheduleDays button');if(day){day.classList.toggle('is-selected');state.days=$$('#scheduleDays .is-selected').map(x=>x.dataset.day);renderDerived();return}const tr=e.target.closest('.choice-trigger');if(tr){const c=tr.closest('.choice'),on=!c.classList.contains('is-open');closeChoices(c);c.classList.toggle('is-open',on);tr.setAttribute('aria-expanded',String(on));return}const op=e.target.closest('.choice-menu [data-value]');if(op){const c=op.closest('.choice'),k=c.dataset.choice,v=op.dataset.value;if(k==='logLevel')state.logLevel=v;if(k==='timezone')state.timezone=v;choiceSet(k,v);closeChoices();renderDerived();return}const st=e.target.closest('[data-step]');if(st){const input=$('#taskRetryTimes');input.value=clamp(+input.value+ +st.dataset.step,1,20,3);renderDerived();return}const ra=e.target.closest('[data-remove-account]');if(ra){state.accounts.splice(+ra.dataset.removeAccount,1);renderAccounts();return}const fc=e.target.closest('[data-format-cookie]');if(fc){const i=+fc.dataset.formatCookie,c=cookie(state.accounts[i].cookies);if(!c.parsed)return toast(`无法格式化：${c.label}`,'warning');state.accounts[i].cookies=JSON.stringify(c.parsed,null,2);renderAccounts();toast('Cookie JSON 已格式化','success');return}const at=e.target.closest('[data-add-target]');if(at){const i=+at.dataset.addTarget,inp=$(`[data-target-input="${i}"]`),v=inp.value.trim();if(v&&!state.accounts[i].targets.includes(v)){state.accounts[i].targets.push(v);renderAccounts()}return}const rt=e.target.closest('[data-remove-target]');if(rt){const [i,j]=rt.dataset.removeTarget.split(':').map(Number);state.accounts[i].targets.splice(j,1);renderAccounts();return}const cv=e.target.closest('[data-copy-variable]');if(cv){copy(vars()[cv.dataset.copyVariable],`${cv.dataset.copyVariable} 已复制`);return}const ci=e.target.closest('[data-command-index]');if(ci){execCmd(+ci.dataset.commandIndex);return}if(!e.target.closest('.choice'))closeChoices()});
+document.addEventListener('input',e=>{const f=e.target.closest('[data-account-field]');if(f){const i=+f.dataset.index,k=f.dataset.accountField;state.accounts[i][k]=f.value;const card=f.closest('.account-card');if(card&&k==='cookies'){const c=cookie(f.value),badge=$('.cookie-state',card),detail=f.closest('.field')?.querySelector('small');badge.className=`cookie-state${c.level==='valid'?' is-valid':c.level==='invalid'?' is-invalid':c.level==='warning'?' is-warning':''}`;badge.textContent=c.label;if(detail)detail.textContent=c.detail}if(card&&(k==='username'||k==='unique_id'))$('.account-title h2',card).innerHTML=`${esc(state.accounts[i].username.trim()||'未命名账号')} <span class="secret-key">${esc(secret(state.accounts[i]))}</span>`;renderDerived();return}if(e.target.matches('#scheduleHour,#scheduleMinute,#browserTimeout,#friendListTimeout,#taskRetryTimes,#proxyAddress,#messageTemplate'))renderDerived();if(e.target.id==='commandInput'){state.cmd=0;renderCmd()}});
+document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();$('#commandLayer').hidden?openCmd():closeCmd();return}if(e.key==='Escape'){closeCmd();closeChoices();return}if(e.key==='Enter'&&e.target.matches('[data-target-input]')){e.preventDefault();$(`[data-add-target="${e.target.dataset.targetInput}"]`)?.click();return}if(!$('#commandLayer').hidden&&['ArrowDown','ArrowUp','Enter'].includes(e.key)){const a=cmdItems();if(!a.length)return;e.preventDefault();if(e.key==='ArrowDown')state.cmd=(state.cmd+1)%a.length;if(e.key==='ArrowUp')state.cmd=(state.cmd-1+a.length)%a.length;if(e.key==='Enter')return execCmd(state.cmd);renderCmd()}});
+if(window.visualViewport){const k=()=>document.body.classList.toggle('keyboard-open',visualViewport.height<innerHeight*.72);visualViewport.addEventListener('resize',k);visualViewport.addEventListener('scroll',k)}
+loadDraft();renderAccounts();renderDerived();loadGithub(false);
+})();
