@@ -44,7 +44,57 @@ jobs:
 
       - name: Validate SparkFlow configuration
         id: config_check
-        run: python utils/validate_config.py
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import sys
+
+          def fail(message):
+              print(f"Configuration error: {message}", file=sys.stderr)
+              raise SystemExit(2)
+
+          try:
+              tasks = json.loads(os.getenv("TASKS", "[]"))
+          except json.JSONDecodeError as exc:
+              fail(f"TASKS is not valid JSON: {exc}")
+
+          if not isinstance(tasks, list) or not tasks:
+              fail("TASKS must be a non-empty JSON array")
+
+          match_mode = os.getenv("MATCH_MODE", "nickname")
+          if match_mode not in {"nickname", "short_id"}:
+              fail("MATCH_MODE must be nickname or short_id")
+
+          for index, task in enumerate(tasks, start=1):
+              if not isinstance(task, dict):
+                  fail(f"TASKS[{index}] must be an object")
+              unique_id = str(task.get("unique_id") or "").strip()
+              targets = task.get("targets")
+              if not unique_id:
+                  fail(f"TASKS[{index}] is missing unique_id")
+              if not isinstance(targets, list) or not targets:
+                  fail(f"TASKS[{index}].targets must be a non-empty array")
+              cookies_key = f"COOKIES_{unique_id}".upper()
+              if not os.getenv(cookies_key):
+                  fail(f"missing secret/environment variable: {cookies_key}")
+
+          for name, default in {
+              "BROWSER_TIMEOUT": "120000",
+              "FRIEND_LIST_WAIT_TIME": "2000",
+              "TASK_RETRY_TIMES": "3",
+          }.items():
+              raw = os.getenv(name, default)
+              try:
+                  value = int(raw)
+              except ValueError:
+                  fail(f"{name} must be an integer")
+              if value <= 0:
+                  fail(f"{name} must be greater than 0")
+
+          print(f"Configuration validation passed for {len(tasks)} account task(s).")
+          PY
 
       - name: Test Douyin accessibility
         continue-on-error: true
@@ -82,10 +132,23 @@ jobs:
 
       - name: Write Actions summary
         if: always()
+        shell: bash
         env:
           CONFIG_OUTCOME: ${{ steps.config_check.outcome }}
           SPARKFLOW_OUTCOME: ${{ steps.sparkflow.outcome }}
-        run: python utils/github_summary.py
+        run: |
+          {
+            echo "## SparkFlow run summary"
+            echo
+            echo "- Configuration: ${CONFIG_OUTCOME:-not-run}"
+            echo "- SparkFlow: ${SPARKFLOW_OUTCOME:-not-run}"
+            echo "- Event: ${GITHUB_EVENT_NAME}"
+            echo "- Ref: ${GITHUB_REF_NAME}"
+            echo "- Run: ${GITHUB_RUN_ID} / attempt ${GITHUB_RUN_ATTEMPT}"
+            if [ -f run-status.json ]; then
+              echo "- Structured status: run-status.json"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload run diagnostics
         if: always()
