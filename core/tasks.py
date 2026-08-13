@@ -14,6 +14,7 @@ from utils.logger import setup_logger
 config = get_config()
 userData = get_userData()
 logger = setup_logger(level=config.get("logLevel", "Info"))
+matchMode = config.get("matchMode", "nickname")
 
 CHAT_URL = "https://www.douyin.com/chat"
 SEARCH_SELECTORS = (
@@ -39,6 +40,14 @@ CONVERSATION_LIST_SELECTORS = (
     '.conversationConversationListwrapper',
     '[class*="conversationConversationListwrapper"]',
 )
+CONVERSATION_ITEM_SELECTORS = (
+    '.conversationConversationItemwrapper',
+    '[class*="conversationConversationItemwrapper"]',
+)
+CONVERSATION_TITLE_SELECTORS = (
+    '.conversationConversationItemtitle',
+    '[class*="conversationConversationItemtitle"]',
+)
 LOGIN_TEXTS = ("扫码登录", "手机号登录", "验证码登录")
 AUTH_COOKIE_MARKERS = (
     "sessionid",
@@ -48,6 +57,8 @@ AUTH_COOKIE_MARKERS = (
     "uid_tt",
     "uid_tt_ss",
 )
+
+userIDDict = {}
 
 
 def norm(value):
@@ -70,8 +81,40 @@ def retry_operation(name, operation, retries=3, delay=2, *args, **kwargs):
 
 
 def handle_response(response: Response):
-    if "aweme/v1/web/im/user/info" in response.url and response.status >= 400:
+    """Collect Douyin Web IM user metadata used for short_id matching."""
+    if "aweme/v1/web/im/user/info" not in response.url:
+        return
+    if response.status >= 400:
         logger.debug(f"好友信息接口状态异常: {response.status}")
+        return
+
+    try:
+        payload = response.json()
+        data = payload.get("data", []) if isinstance(payload, dict) else []
+        if not isinstance(data, list):
+            return
+
+        added = 0
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            nickname = norm(item.get("nickname"))
+            remark_name = norm(item.get("remark_name"))
+            display_name = remark_name or nickname
+            if not display_name:
+                continue
+
+            for key in ("short_id", "unique_id", "sec_uid"):
+                identifier = norm(item.get(key))
+                if identifier:
+                    if userIDDict.get(identifier) != display_name:
+                        userIDDict[identifier] = display_name
+                        added += 1
+
+        if added:
+            logger.debug(f"好友信息映射新增 {added} 项，当前共 {len(userIDDict)} 项")
+    except Exception as exc:
+        logger.debug(f"解析好友信息接口失败: {exc}")
 
 
 def first_visible(page, selectors):
@@ -117,16 +160,17 @@ def diagnose(page, username, reason):
         search_count = sum(page.locator(sel).count() for sel in SEARCH_SELECTORS)
         list_count = sum(page.locator(sel).count() for sel in CONVERSATION_LIST_SELECTORS)
         editor_count = sum(page.locator(sel).count() for sel in CHAT_EDITOR_SELECTORS)
+        mapped_ids = len(userIDDict)
         login_visible = looks_logged_out(page)
     except Exception:
         title = "<unavailable>"
-        html_len = search_count = list_count = editor_count = -1
+        html_len = search_count = list_count = editor_count = mapped_ids = -1
         login_visible = False
 
     logger.error(
         f"账号 {username} 页面诊断: reason={reason}; url={page.url}; title={title!r}; "
         f"html_len={html_len}; search={search_count}; lists={list_count}; "
-        f"editors={editor_count}; login_visible={login_visible}"
+        f"editors={editor_count}; mapped_ids={mapped_ids}; login_visible={login_visible}"
     )
 
     if os.getenv("SAVE_FAILURE_SCREENSHOT", "false").lower() in {"1", "true", "yes", "on"}:
@@ -149,6 +193,7 @@ def create_context(browser):
 
 
 def open_chat_page(browser, username, cookies):
+    userIDDict.clear()
     context = create_context(browser)
     try:
         context.add_cookies(cookies)
@@ -262,8 +307,135 @@ def find_chat_button(page, target, timeout_ms=8000):
     return None, ""
 
 
+def _conversation_title(item):
+    for selector in CONVERSATION_TITLE_SELECTORS:
+        try:
+            title = item.locator(selector).first
+            if title.count() > 0:
+                text = norm(title.inner_text(timeout=1000))
+                if text:
+                    return text
+        except Exception:
+            continue
+    try:
+        return norm(item.inner_text(timeout=1000).splitlines()[0])
+    except Exception:
+        return ""
+
+
+def _visible_conversation_items(page):
+    for selector in CONVERSATION_ITEM_SELECTORS:
+        try:
+            items = page.locator(selector)
+            if items.count() > 0:
+                return items, selector
+        except Exception:
+            continue
+    return None, ""
+
+
+def _conversation_list(page):
+    for selector in CONVERSATION_LIST_SELECTORS:
+        try:
+            locator = page.locator(selector).first
+            if locator.count() > 0 and locator.is_visible():
+                return locator, selector
+        except Exception:
+            continue
+    return None, ""
+
+
+def find_conversation_by_identifier(page, username, target, click=True):
+    """Resolve a short_id/unique_id/sec_uid via IM responses while scrolling chats."""
+    target = norm(target)
+    ensure_chat_ready(page, username)
+    scrollable, list_selector = _conversation_list(page)
+    if scrollable is None:
+        diagnose(page, username, f"conversation-list-not-found:{target}")
+        return False
+
+    seen_titles = set()
+    stagnant_rounds = 0
+    last_scroll_top = None
+
+    for _ in range(50):
+        display_name = norm(userIDDict.get(target))
+        items, item_selector = _visible_conversation_items(page)
+        if items is not None:
+            count = min(items.count(), 80)
+            for index in range(count):
+                item = items.nth(index)
+                try:
+                    if not item.is_visible():
+                        continue
+                except Exception:
+                    continue
+                title = _conversation_title(item)
+                if title:
+                    seen_titles.add(title)
+                if title and (title == target or (display_name and title == display_name)):
+                    logger.info(
+                        f"账号 {username} 已通过 {matchMode} 映射定位目标 {target}: {title} "
+                        f"({item_selector})"
+                    )
+                    if click:
+                        item.click()
+                        page.wait_for_timeout(1200)
+                    return True
+
+        page.wait_for_timeout(500)
+        display_name = norm(userIDDict.get(target))
+        if display_name and display_name in seen_titles:
+            items, _ = _visible_conversation_items(page)
+            if items is not None:
+                for index in range(min(items.count(), 80)):
+                    item = items.nth(index)
+                    if _conversation_title(item) == display_name:
+                        logger.info(
+                            f"账号 {username} 已通过好友信息接口映射定位目标 {target}: {display_name}"
+                        )
+                        if click:
+                            item.click()
+                            page.wait_for_timeout(1200)
+                        return True
+
+        try:
+            before = scrollable.evaluate("el => el.scrollTop")
+            scrollable.evaluate("el => { el.scrollTop += Math.max(600, el.clientHeight * 0.8); }")
+            page.wait_for_timeout(max(700, min(1800, config["friendListTimeout"])))
+            after = scrollable.evaluate("el => el.scrollTop")
+        except Exception as exc:
+            logger.debug(f"滚动会话列表失败: {exc}")
+            break
+
+        if after == before or after == last_scroll_top:
+            stagnant_rounds += 1
+        else:
+            stagnant_rounds = 0
+        last_scroll_top = after
+
+        if stagnant_rounds >= 4:
+            break
+
+    logger.warning(
+        f"账号 {username} 未能通过 {matchMode} 在会话列表中定位目标 {target}; "
+        f"已收集 {len(userIDDict)} 个 ID 映射、扫描 {len(seen_titles)} 个会话标题、列表 {list_selector}"
+    )
+    return False
+
+
 def search_target(page, username, target, click=True):
     target = str(target).strip()
+
+    if matchMode == "short_id":
+        if find_conversation_by_identifier(page, username, target, click=click):
+            return True
+        diagnose(page, username, f"short-id-not-found:{target}")
+        raise RuntimeError(
+            f"未能在已加载的抖音会话中匹配 short_id {target}。"
+            "已尝试好友信息接口映射和滚动会话列表。"
+        )
+
     search_input = get_search_input(page, username)
     try:
         search_input.click()
@@ -277,10 +449,7 @@ def search_target(page, username, target, click=True):
     button, selector = find_chat_button(page, target)
     if button is None:
         diagnose(page, username, f"search-result-not-found:{target}")
-        raise RuntimeError(
-            f"搜索目标 {target} 后未找到唯一可确认的聊天/发消息按钮。"
-            "如果使用 short_id 搜索失败，建议把目标改成好友备注名。"
-        )
+        raise RuntimeError(f"搜索目标 {target} 后未找到唯一可确认的聊天/发消息按钮")
 
     logger.info(f"账号 {username} 搜索到目标 {target}: {selector}")
     if click:
@@ -343,7 +512,7 @@ def smoke_user(browser, username, cookies, targets):
         ensure_chat_ready(page, username)
         if targets:
             search_target(page, username, targets[0], click=False)
-        logger.info(f"账号 {username} smoke test 通过：登录态、Web Chat 和目标搜索均可用")
+        logger.info(f"账号 {username} smoke test 通过：登录态、Web Chat 和目标匹配均可用")
     finally:
         context.close()
 
