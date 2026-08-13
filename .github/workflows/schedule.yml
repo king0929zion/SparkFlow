@@ -2,15 +2,6 @@ name: DouYin Spark Flow Schedule Run
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - "core/**"
-      - "utils/**"
-      - "main.py"
-      - "requirements.txt"
-      - ".github/workflows/schedule.yml"
   schedule:
     - cron: "7 9 * * *"
       timezone: "Asia/Shanghai"
@@ -32,9 +23,6 @@ jobs:
     timeout-minutes: 20
     runs-on: ubuntu-latest
     environment: user-data
-    env:
-      # Push 只做真实环境 smoke test，不点击聊天、不输入、不发送消息。
-      SPARKFLOW_SMOKE_TEST: ${{ github.event_name == 'push' && '1' || '0' }}
 
     steps:
       - name: Checkout
@@ -105,7 +93,6 @@ jobs:
                   fail(f"{name} must be greater than 0")
 
           print(f"Configuration validation passed for {len(tasks)} account task(s).")
-          print(f"Run mode: {'smoke' if os.getenv('SPARKFLOW_SMOKE_TEST') == '1' else 'send'}")
           PY
 
       - name: Test Douyin accessibility
@@ -129,8 +116,16 @@ jobs:
             playwright install chromium --with-deps --only-shell
           fi
 
+      - name: Preflight Web Chat smoke test
+        id: smoke
+        env:
+          SPARKFLOW_SMOKE_TEST: "1"
+        run: python main.py
+
       - name: Run DouYin Spark Flow
         id: sparkflow
+        env:
+          SPARKFLOW_SMOKE_TEST: "0"
         run: python main.py
 
       - name: Write Actions summary
@@ -138,14 +133,15 @@ jobs:
         shell: bash
         env:
           CONFIG_OUTCOME: ${{ steps.config_check.outcome }}
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
           SPARKFLOW_OUTCOME: ${{ steps.sparkflow.outcome }}
         run: |
           {
             echo "## SparkFlow run summary"
             echo
             echo "- Configuration: ${CONFIG_OUTCOME:-not-run}"
-            echo "- SparkFlow: ${SPARKFLOW_OUTCOME:-not-run}"
-            echo "- Mode: $([ "$SPARKFLOW_SMOKE_TEST" = "1" ] && echo smoke || echo send)"
+            echo "- Safe Web Chat smoke: ${SMOKE_OUTCOME:-not-run}"
+            echo "- Message task: ${SPARKFLOW_OUTCOME:-not-run}"
             echo "- Event: ${GITHUB_EVENT_NAME}"
             echo "- Ref: ${GITHUB_REF_NAME}"
             echo "- Run: ${GITHUB_RUN_ID} / attempt ${GITHUB_RUN_ATTEMPT}"
