@@ -4,13 +4,12 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-# 本地运行时仍支持手动维护 .env；GitHub Actions 直接使用 GITHUB_ENV。
 if os.path.exists(".env"):
     from dotenv import load_dotenv
 
     load_dotenv(".env")
 
-from core.tasks import runTasks
+from core.tasks import runTasks, smokeTasks
 
 STATUS_FILE = Path("run-status.json")
 
@@ -19,9 +18,10 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def write_run_status(status: str, started_at: str, duration_seconds: float, error_type: str = "") -> None:
+def write_run_status(status: str, started_at: str, duration_seconds: float, mode: str, error_type: str = "") -> None:
     payload = {
         "status": status,
+        "mode": mode,
         "started_at": started_at,
         "finished_at": utc_now(),
         "duration_seconds": round(duration_seconds, 2),
@@ -38,14 +38,20 @@ def write_run_status(status: str, started_at: str, duration_seconds: float, erro
 def main() -> None:
     started_at = utc_now()
     started = time.monotonic()
+    smoke = os.getenv("SPARKFLOW_SMOKE_TEST", "false").lower() in {"1", "true", "yes", "on"}
+    mode = "smoke" if smoke else "send"
 
     try:
-        runTasks()
+        if smoke:
+            smokeTasks()
+        else:
+            runTasks()
     except Exception as exc:
         write_run_status(
             status="failure",
             started_at=started_at,
             duration_seconds=time.monotonic() - started,
+            mode=mode,
             error_type=type(exc).__name__,
         )
         raise
@@ -54,6 +60,7 @@ def main() -> None:
             status="success",
             started_at=started_at,
             duration_seconds=time.monotonic() - started,
+            mode=mode,
         )
 
 
