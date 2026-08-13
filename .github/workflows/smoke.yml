@@ -1,0 +1,96 @@
+name: SparkFlow Web Chat Smoke Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "core/**"
+      - "utils/**"
+      - "main.py"
+      - "requirements.txt"
+      - ".github/workflows/smoke.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sparkflow-chat-smoke
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  SPARKFLOW_SMOKE_TEST: "1"
+
+jobs:
+  smoke:
+    name: Verify Web Chat without sending
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: user-data
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Export repository variables and secrets
+        env:
+          VARS_JSON: ${{ toJson(vars) }}
+          SECRETS_JSON: ${{ toJson(secrets) }}
+        run: python utils/export_github_env.py
+
+      - name: Validate smoke configuration
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+
+          tasks = json.loads(os.getenv("TASKS", "[]"))
+          if not tasks:
+              raise SystemExit("TASKS is empty")
+          for task in tasks:
+              unique_id = str(task.get("unique_id") or "").strip()
+              targets = task.get("targets") or []
+              if not unique_id:
+                  raise SystemExit("TASKS contains an account without unique_id")
+              if not targets:
+                  raise SystemExit(f"TASKS account {unique_id} has no targets")
+              key = f"COOKIES_{unique_id}".upper()
+              if not os.getenv(key):
+                  raise SystemExit(f"Missing {key}")
+          print(f"Smoke configuration OK for {len(tasks)} account(s)")
+          PY
+
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Show browser runtime
+        shell: bash
+        run: |
+          command -v google-chrome || command -v google-chrome-stable || true
+          google-chrome --version 2>/dev/null || google-chrome-stable --version 2>/dev/null || true
+
+      - name: Verify Douyin Web Chat
+        run: python main.py
+
+      - name: Upload smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            logs/
+            run-status.json
+          if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 6
