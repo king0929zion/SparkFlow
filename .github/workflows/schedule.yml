@@ -2,8 +2,16 @@ name: DouYin Spark Flow Schedule Run
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "core/**"
+      - "utils/**"
+      - "main.py"
+      - "requirements.txt"
+      - ".github/workflows/schedule.yml"
   schedule:
-    # 使用北京时间直接配置，避免手工换算 UTC；错开整点以降低 GitHub Actions 调度高峰影响。
     - cron: "7 9 * * *"
       timezone: "Asia/Shanghai"
 
@@ -24,6 +32,9 @@ jobs:
     timeout-minutes: 20
     runs-on: ubuntu-latest
     environment: user-data
+    env:
+      # Push 只做真实环境 smoke test，不点击聊天、不输入、不发送消息。
+      SPARKFLOW_SMOKE_TEST: ${{ github.event_name == 'push' && '1' || '0' }}
 
     steps:
       - name: Checkout
@@ -94,37 +105,29 @@ jobs:
                   fail(f"{name} must be greater than 0")
 
           print(f"Configuration validation passed for {len(tasks)} account task(s).")
+          print(f"Run mode: {'smoke' if os.getenv('SPARKFLOW_SMOKE_TEST') == '1' else 'send'}")
           PY
 
-      - name: Test Douyin Web Chat accessibility
+      - name: Test Douyin accessibility
         continue-on-error: true
         run: |
-          curl --fail --silent --show-error --location --head \
+          curl --fail --silent --show-error --location --output /dev/null \
             --connect-timeout 10 --max-time 20 --retry 2 \
-            https://www.douyin.com/chat >/dev/null
+            https://www.douyin.com/
 
       - name: Install Python dependencies
         run: python -m pip install -r requirements.txt
 
-      - name: Detect Playwright version
-        id: playwright
+      - name: Ensure browser runtime
         shell: bash
         run: |
-          echo "version=$(python -c 'import importlib.metadata; print(importlib.metadata.version("playwright"))')" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browser
-        id: playwright_cache
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}
-
-      - name: Install Chromium system dependencies
-        run: playwright install-deps chromium
-
-      - name: Install Chromium headless shell
-        if: steps.playwright_cache.outputs.cache-hit != 'true'
-        run: playwright install chromium --only-shell
+          if command -v google-chrome >/dev/null 2>&1; then
+            google-chrome --version
+          elif command -v google-chrome-stable >/dev/null 2>&1; then
+            google-chrome-stable --version
+          else
+            playwright install chromium --with-deps --only-shell
+          fi
 
       - name: Run DouYin Spark Flow
         id: sparkflow
@@ -142,6 +145,7 @@ jobs:
             echo
             echo "- Configuration: ${CONFIG_OUTCOME:-not-run}"
             echo "- SparkFlow: ${SPARKFLOW_OUTCOME:-not-run}"
+            echo "- Mode: $([ "$SPARKFLOW_SMOKE_TEST" = "1" ] && echo smoke || echo send)"
             echo "- Event: ${GITHUB_EVENT_NAME}"
             echo "- Ref: ${GITHUB_REF_NAME}"
             echo "- Run: ${GITHUB_RUN_ID} / attempt ${GITHUB_RUN_ATTEMPT}"
@@ -169,5 +173,4 @@ jobs:
     permissions:
       actions: write
     steps:
-      # Pin third-party action to the commit behind v1.2.1.
       - uses: liskin/gh-workflow-keepalive@f72ff1a1336129f29bf0166c0fd0ca6cf1bcb38c
