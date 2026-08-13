@@ -1,6 +1,6 @@
 # GitHub Actions 部署
 
-SparkFlow 已内置 GitHub Actions 工作流和 Web 控制中心。推荐先在控制中心完成配置、账号、Cookie 与定时计划预检，再把生成结果写入 GitHub Environment `user-data`。
+SparkFlow 已内置 GitHub Actions 工作流和 Web 控制中心。生产环境统一使用 `main` 分支。推荐先在控制中心完成配置、账号、Cookie 与定时计划预检，再把生成结果写入 GitHub Environment `user-data`。
 
 > Web 控制中心是纯静态页面。它可以生成配置并读取公开的 GitHub Actions 运行状态，但不会在浏览器中保存 Cookie，也不会要求你把 GitHub Token 放进网页。
 
@@ -10,11 +10,11 @@ SparkFlow 已内置 GitHub Actions 工作流和 Web 控制中心。推荐先在�
 2. 打开 Fork 后仓库的 `Actions` 页面。
 3. 如果 GitHub 提示 Fork 的工作流尚未启用，先手动启用 Workflows。
 
-首次部署完成后，建议手动运行一次 `DouYin Spark Flow Schedule Run`，确认 Cookie、好友匹配与页面结构都正常。
+首次部署完成后，建议手动运行一次 `DouYin Spark Flow Schedule Run`，分支选择 `main`，确认 Cookie、好友匹配与页面结构都正常。
 
 ## 2. 打开 Web 控制中心
 
-控制中心源码位于 `docs/`，可通过 GitHub Pages 部署。
+控制中心源码位于 `docs/`，推荐通过 GitHub Pages 从 `main /docs` 部署。
 
 控制中心包含：
 
@@ -90,7 +90,17 @@ COOKIES_ZION0929
 
 `Settings` → `Environments` → `user-data` → `Environment secrets`
 
-把 Cookie-Editor 导出的 JSON 数组作为 Secret 值粘贴进去。
+### Cookie 必须从 Web Chat 域名获取
+
+生产核心现在访问：
+
+```text
+https://www.douyin.com/chat
+```
+
+因此请先在浏览器打开这个地址并确认已经登录，而且能正常看到聊天列表。然后在这个页面使用 Cookie-Editor 导出 JSON 数组，再把完整 JSON 作为 `COOKIES_<UNIQUE_ID>` 的 Secret 值。
+
+不要再从 `creator.douyin.com` 导出生产 Cookie。创作者中心 Cookie 可能无法给 `www.douyin.com/chat` 提供有效登录态。
 
 控制中心会检查 Cookie 是否是非空 JSON 数组，并检查常见 Playwright Cookie 字段和 `douyin.com` 域名，但最终登录有效性仍需要通过一次真实 Actions 运行确认。
 
@@ -102,7 +112,7 @@ COOKIES_ZION0929
 .github/workflows/schedule.yml
 ```
 
-当前工作流支持 GitHub Actions 的 `timezone` 配置，因此可以直接使用本地时间。例如每天北京时间 09:07：
+当前主工作流支持 GitHub Actions 的 `timezone` 配置，因此可以直接使用本地时间。例如每天北京时间 09:07：
 
 ```yaml
 on:
@@ -122,14 +132,21 @@ on:
 DouYin Spark Flow Schedule Run
 ```
 
-点击 `Run workflow`。
+点击 `Run workflow`，分支选择：
+
+```text
+main
+```
 
 建议重点检查：
 
 1. `Validate SparkFlow configuration` 是否通过。
-2. `Run DouYin Spark Flow` 是否成功。
-3. Actions Summary 中的配置和运行状态。
-4. 失败时下载 `run-logs-*` Artifact 查看 `logs/` 和 `run-status.json`。
+2. `Test Douyin Web Chat accessibility` 是否完成。
+3. `Run DouYin Spark Flow` 是否成功。
+4. Actions Summary 中的配置和运行状态。
+5. 失败时下载 `run-logs-*` Artifact 查看 `logs/` 和 `run-status.json`。
+
+如果日志提示 `抖音 Web 登录态无效`，先不要改 Variables。回到 `https://www.douyin.com/chat` 重新登录并重新导出 Cookie，然后只更新对应的 `COOKIES_*` Secret。
 
 如果控制中心显示“API 返回 0 个工作流”或“暂无运行记录”，通常表示这个 Fork 的 Actions 还没有启用或还没有完成过一次运行。启用并手动运行后，再刷新控制中心即可看到真实状态。
 
