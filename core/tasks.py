@@ -15,14 +15,32 @@ from utils.logger import setup_logger
 config = get_config()
 userData = get_userData()
 logger = setup_logger(level=config.get("logLevel", "Info"))
-matchMode = config.get("matchMode", "nickname")
 
+HOME_URL = "https://www.douyin.com/"
 CHAT_URL = "https://www.douyin.com/chat"
-CONVERSATION_ITEM = '[class*="conversationConversationItemwrapper"]'
-CONVERSATION_TITLE = '[class*="conversationConversationItemtitle"]'
-CONVERSATION_LIST = '[class*="conversationConversationListwrapper"]'
-CHAT_EDITOR = '[class*="messageEditorimChatEditorContainer"]'
-userIDDict = {}
+SEARCH_SELECTORS = (
+    'input.semi-input[placeholder="搜索"][type="text"]',
+    'input.semi-input[placeholder="搜索"]',
+    'input[placeholder="搜索"]',
+    '.searchSearchInputinput_box input',
+    '.LeftPanelHeadersearch input',
+)
+CHAT_BUTTON_SELECTORS = (
+    'div[class*="SearchPanelitemchat_btn"]',
+    '[class*="chat_btn"]',
+    '[class*="SearchPanel"] [class*="btn"]',
+    '.semi-button',
+)
+CHAT_EDITOR_SELECTORS = (
+    'div[data-slate-editor="true"][contenteditable="true"]',
+    '[class*="messageEditorimChatEditorContainer"] [contenteditable="true"]',
+    '[contenteditable="true"][role="textbox"]',
+)
+CONVERSATION_LIST_SELECTORS = (
+    '.conversationConversationListwrapper',
+    '[class*="conversationConversationListwrapper"]',
+)
+LOGIN_TEXTS = ("扫码登录", "手机号登录", "验证码登录")
 
 
 def norm(value):
@@ -30,35 +48,6 @@ def norm(value):
     value = value.replace("\u3000", " ").replace("\xa0", " ")
     value = value.replace("\u200b", "").replace("\ufeff", "")
     return re.sub(r"\s+", " ", value).strip()
-
-
-def handle_response(response: Response):
-    """Collect identifiers from the Douyin Web IM user-info endpoint."""
-    global userIDDict
-    if "aweme/v1/web/im/user/info" not in response.url:
-        return
-    try:
-        for item in response.json().get("data", []):
-            nickname = norm(item.get("nickname"))
-            remark = norm(item.get("remark_name") or nickname)
-            ids = {
-                norm(v)
-                for v in (
-                    item.get("short_id"),
-                    item.get("unique_id"),
-                    item.get("sec_uid"),
-                    nickname,
-                    remark,
-                )
-                if v not in (None, "")
-            }
-            for alias in {nickname, remark} - {""}:
-                userIDDict[alias] = ids
-    except Exception as exc:
-        tb = traceback.extract_tb(exc.__traceback__)
-        last = tb[-1] if tb else None
-        where = f"{last.filename}:{last.lineno}" if last else "unknown"
-        logger.warning(f"解析抖音好友信息失败 ({where}): {exc}")
 
 
 def retry_operation(name, operation, retries=3, delay=2, *args, **kwargs):
@@ -73,134 +62,215 @@ def retry_operation(name, operation, retries=3, delay=2, *args, **kwargs):
             time.sleep(delay)
 
 
-def diagnose(page, username, reason):
-    """Log non-sensitive state. Screenshot capture is opt-in because chat pages are private."""
-    try:
-        counts = (
-            page.locator(CONVERSATION_LIST).count(),
-            page.locator(CONVERSATION_ITEM).count(),
-            page.locator(CHAT_EDITOR).count(),
-        )
-        title = page.title()
-    except Exception:
-        counts, title = (-1, -1, -1), "<unavailable>"
-    logger.error(
-        f"账号 {username} 页面诊断: reason={reason}; url={page.url}; title={title!r}; "
-        f"lists={counts[0]}; items={counts[1]}; editors={counts[2]}"
-    )
-    if os.getenv("SAVE_FAILURE_SCREENSHOT", "false").lower() in {"1", "true", "yes", "on"}:
+def handle_response(response: Response):
+    if "aweme/v1/web/im/user/info" in response.url and response.status >= 400:
+        logger.debug(f"好友信息接口状态异常: {response.status}")
+
+
+def first_visible(page, selectors):
+    for selector in selectors:
         try:
-            Path("logs").mkdir(parents=True, exist_ok=True)
-            safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in username)
-            page.screenshot(path=str(Path("logs") / f"{safe or 'account'}-chat-failure.png"))
-        except Exception as exc:
-            logger.warning(f"保存失败截图失败: {exc}")
+            locator = page.locator(selector).first
+            if locator.count() > 0 and locator.is_visible():
+                return locator, selector
+        except Exception:
+            continue
+    return None, ""
+
+
+def wait_for_any_visible(page, selectors, timeout_ms):
+    deadline = time.monotonic() + timeout_ms / 1000
+    while time.monotonic() < deadline:
+        locator, selector = first_visible(page, selectors)
+        if locator is not None:
+            return locator, selector
+        time.sleep(0.25)
+    return None, ""
 
 
 def looks_logged_out(page):
     url = page.url.lower()
     if any(token in url for token in ("passport", "/login")):
         return True
-    for text in ("扫码登录", "手机号登录", "验证码登录"):
+    for text in LOGIN_TEXTS:
         try:
-            if page.get_by_text(text, exact=False).count() > 0:
-                return True
+            matches = page.get_by_text(text, exact=False)
+            for index in range(min(matches.count(), 8)):
+                if matches.nth(index).is_visible():
+                    return True
         except Exception:
-            pass
+            continue
     return False
 
 
-def ensure_chat_ready(page, username):
-    timeout = min(config["browserTimeout"], 30000)
+def diagnose(page, username, reason):
     try:
-        page.locator(CONVERSATION_LIST).first.wait_for(state="visible", timeout=timeout)
-        page.locator(CONVERSATION_ITEM).first.wait_for(state="visible", timeout=timeout)
-    except PlaywrightTimeoutError as exc:
-        diagnose(page, username, "chat-list-not-ready")
-        if looks_logged_out(page):
+        title = page.title()
+        html_len = len(page.content())
+        search_count = sum(page.locator(sel).count() for sel in SEARCH_SELECTORS)
+        list_count = sum(page.locator(sel).count() for sel in CONVERSATION_LIST_SELECTORS)
+        editor_count = sum(page.locator(sel).count() for sel in CHAT_EDITOR_SELECTORS)
+        login_visible = looks_logged_out(page)
+    except Exception:
+        title = "<unavailable>"
+        html_len = search_count = list_count = editor_count = -1
+        login_visible = False
+    logger.error(
+        f"账号 {username} 页面诊断: reason={reason}; url={page.url}; title={title!r}; "
+        f"html_len={html_len}; search={search_count}; lists={list_count}; "
+        f"editors={editor_count}; login_visible={login_visible}"
+    )
+    if os.getenv("SAVE_FAILURE_SCREENSHOT", "false").lower() in {"1", "true", "yes", "on"}:
+        try:
+            Path("logs").mkdir(parents=True, exist_ok=True)
+            safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in username)
+            page.screenshot(
+                path=str(Path("logs") / f"{safe or 'account'}-chat-failure.png"),
+                full_page=False,
+            )
+        except Exception as exc:
+            logger.warning(f"保存失败截图失败: {exc}")
+
+
+def create_context(browser):
+    context = browser.new_context(
+        locale="zh-CN",
+        timezone_id="Asia/Shanghai",
+        viewport={"width": 1440, "height": 900},
+    )
+    context.set_default_navigation_timeout(config["browserTimeout"])
+    context.set_default_timeout(config["browserTimeout"])
+    return context
+
+
+def open_chat_page(browser, username, cookies):
+    context = create_context(browser)
+    try:
+        context.add_cookies(cookies)
+        scoped_cookies = context.cookies([HOME_URL, CHAT_URL])
+        if not scoped_cookies:
             raise RuntimeError(
-                "抖音 Web 登录态无效。请登录 https://www.douyin.com/chat 后重新导出 Cookie，"
-                "再更新 COOKIES_<UNIQUE_ID>。"
-            ) from exc
+                "当前 Cookie 没有任何条目可用于 www.douyin.com。"
+                "请从 https://www.douyin.com/chat 重新导出 Cookie。"
+            )
+
+        domains = sorted({cookie.get("domain", "") for cookie in scoped_cookies if cookie.get("domain")})
+        logger.info(f"账号 {username} 已载入 {len(scoped_cookies)} 条 Web Cookie，域名数 {len(domains)}")
+
+        page = context.new_page()
+        page.on("response", handle_response)
+
+        # 先访问站点首页，让站点初始化自身 Cookie/脚本，再进入聊天页。
+        try:
+            page.goto(HOME_URL, wait_until="domcontentloaded", timeout=min(config["browserTimeout"], 45000))
+            time.sleep(2)
+        except Exception as exc:
+            logger.warning(f"账号 {username} 首页预热失败，继续尝试聊天页: {exc}")
+
+        response = retry_operation(
+            "打开抖音 Web 聊天页面",
+            page.goto,
+            retries=config["taskRetryTimes"],
+            delay=4,
+            url=CHAT_URL,
+            wait_until="domcontentloaded",
+            timeout=min(config["browserTimeout"], 60000),
+        )
+        if response is not None:
+            logger.info(
+                f"账号 {username} 聊天页导航状态: HTTP {response.status}; final_url={page.url}"
+            )
+
+        return context, page
+    except Exception:
+        context.close()
+        raise
+
+
+def ensure_chat_ready(page, username):
+    timeout = min(config["browserTimeout"], 45000)
+    ready_selectors = SEARCH_SELECTORS + CONVERSATION_LIST_SELECTORS
+    locator, selector = wait_for_any_visible(page, ready_selectors, timeout)
+    if locator is not None:
+        logger.info(f"账号 {username} Web Chat 已就绪: {selector}")
+        return locator
+
+    diagnose(page, username, "chat-shell-not-ready")
+    if looks_logged_out(page):
         raise RuntimeError(
-            "抖音聊天列表未加载。可能是 Cookie 不适用于 www.douyin.com、账号没有私信会话，"
-            "或抖音页面结构再次变化。"
-        ) from exc
+            "抖音 Web Chat 显示可见登录界面，当前登录态未生效。"
+            "请确认 COOKIES_<UNIQUE_ID> 来自已登录的 https://www.douyin.com/chat。"
+        )
+    raise RuntimeError(
+        "抖音 Web Chat 外壳未加载。已排除隐藏登录弹窗误判，"
+        "请查看本次 smoke/运行诊断中的 HTTP 状态和 DOM 计数。"
+    )
 
 
-def resolve_target(display_name, targets):
-    display = norm(display_name)
-    target_map = {norm(target): str(target) for target in targets}
-    if display in target_map:
-        return target_map[display]
-    for identifier in userIDDict.get(display, set()):
-        if identifier in target_map:
-            return target_map[identifier]
-    return None
-
-
-def scroll_and_select_user(page, username, targets):
+def get_search_input(page, username):
     ensure_chat_ready(page, username)
-    remaining = {str(target) for target in targets}
-    seen = set()
-    empty_rounds = 0
-    scrollable = page.locator(CONVERSATION_LIST).first.element_handle()
-    if not scrollable:
-        raise RuntimeError("未找到可滚动的抖音会话列表")
+    search_input, selector = wait_for_any_visible(page, SEARCH_SELECTORS, 10000)
+    if search_input is None:
+        diagnose(page, username, "search-input-not-found")
+        raise RuntimeError("抖音 Web Chat 已加载，但未找到可见搜索框")
+    logger.debug(f"账号 {username} 使用搜索框选择器: {selector}")
+    return search_input
 
-    for round_no in range(1, 41):
-        items = page.locator(CONVERSATION_ITEM)
-        new_names = 0
-        for index in range(items.count()):
-            item = items.nth(index)
+
+def find_chat_button(page, timeout_ms=8000):
+    deadline = time.monotonic() + timeout_ms / 1000
+    while time.monotonic() < deadline:
+        for selector in CHAT_BUTTON_SELECTORS:
             try:
-                display_name = norm(
-                    item.locator(CONVERSATION_TITLE).first.inner_text(timeout=5000)
-                )
+                buttons = page.locator(selector)
+                for index in range(min(buttons.count(), 20)):
+                    button = buttons.nth(index)
+                    if not button.is_visible():
+                        continue
+                    text = norm(button.inner_text(timeout=1000))
+                    if "聊天" in text or "发消息" in text or "chat_btn" in selector:
+                        return button, selector
             except Exception:
                 continue
-            if not display_name or display_name in seen:
-                continue
-            seen.add(display_name)
-            new_names += 1
-            target = resolve_target(display_name, remaining)
-            if not target:
-                continue
-            item.click()
-            remaining.discard(target)
-            logger.info(f"账号 {username} 已匹配目标好友: {target}")
-            yield target
-            if not remaining:
-                return
-            break
+        time.sleep(0.25)
+    return None, ""
 
-        empty_rounds = 0 if new_names else empty_rounds + 1
-        before = page.evaluate("el => el.scrollTop", scrollable)
-        page.evaluate("el => { el.scrollTop += Math.max(640, el.clientHeight * 0.8); }", scrollable)
-        time.sleep(0.45)
-        after = page.evaluate("el => el.scrollTop", scrollable)
-        if before == after:
-            empty_rounds += 2
-        logger.debug(
-            f"账号 {username} 搜索 {round_no}/40, scroll={before}->{after}, "
-            f"remaining={sorted(remaining)}, empty={empty_rounds}/10"
-        )
-        if empty_rounds >= 10:
-            break
-        time.sleep(0.7)
 
-    diagnose(page, username, "targets-not-found")
-    raise RuntimeError("未找到以下目标好友: " + ", ".join(sorted(remaining)))
+def search_target(page, username, target, click=True):
+    target = str(target)
+    search_input = get_search_input(page, username)
+    try:
+        search_input.click()
+        search_input.fill("")
+        search_input.fill(target)
+    except Exception as exc:
+        diagnose(page, username, f"search-input-failed:{target}")
+        raise RuntimeError(f"无法在抖音 Web Chat 搜索目标 {target}: {exc}") from exc
+
+    time.sleep(max(1.2, min(3.0, config["friendListTimeout"] / 1000)))
+    button, selector = find_chat_button(page)
+    if button is None:
+        diagnose(page, username, f"search-result-not-found:{target}")
+        raise RuntimeError(f"搜索目标 {target} 后未找到可见的聊天/发消息按钮")
+
+    logger.info(f"账号 {username} 搜索到目标 {target}: {selector}")
+    if click:
+        button.click()
+        time.sleep(1.2)
+    return True
+
+
+def get_chat_editor(page, username, target):
+    editor, selector = wait_for_any_visible(page, CHAT_EDITOR_SELECTORS, min(config["browserTimeout"], 30000))
+    if editor is None:
+        diagnose(page, username, f"editor-not-ready:{target}")
+        raise RuntimeError(f"已选中目标 {target}，但聊天输入框未加载")
+    logger.debug(f"账号 {username} 使用输入框选择器: {selector}")
+    return editor
 
 
 def send_message(page, username, target):
-    editor = page.locator(CHAT_EDITOR).first
-    try:
-        editor.wait_for(state="visible", timeout=config["browserTimeout"])
-    except PlaywrightTimeoutError as exc:
-        diagnose(page, username, f"editor-not-ready:{target}")
-        raise RuntimeError(f"已找到好友 {target}，但聊天输入框未加载") from exc
-
+    editor = get_chat_editor(page, username, target)
     message = str(build_message() or "")
     if not message.strip():
         raise RuntimeError("消息模板生成结果为空，已取消发送")
@@ -208,7 +278,7 @@ def send_message(page, username, target):
     editor.click()
     lines = message.split("\\n")
     for index, line in enumerate(lines):
-        editor.type(line)
+        editor.type(line, delay=12)
         if index < len(lines) - 1:
             editor.press("Shift+Enter")
     editor.press("Enter")
@@ -217,36 +287,14 @@ def send_message(page, username, target):
 
 
 def do_user_task(browser, username, cookies, targets):
-    global userIDDict
-    userIDDict = {}
-    context = browser.new_context()
-    context.set_default_navigation_timeout(config["browserTimeout"])
-    context.set_default_timeout(config["browserTimeout"])
+    context, page = open_chat_page(browser, username, cookies)
     try:
-        context.add_cookies(cookies)
-        if not context.cookies([CHAT_URL]):
-            raise RuntimeError(
-                "当前 Cookie 没有任何条目可用于 www.douyin.com。"
-                "请登录 https://www.douyin.com/chat 后重新导出 Cookie。"
-            )
-
-        page = context.new_page()
-        page.on("response", handle_response)
-        retry_operation(
-            "打开抖音 Web 聊天页面",
-            page.goto,
-            retries=config["taskRetryTimes"],
-            delay=5,
-            url=CHAT_URL,
-            wait_until="domcontentloaded",
-        )
-        time.sleep(min(5, max(2, config["friendListTimeout"] / 1000)))
         ensure_chat_ready(page, username)
-
         sent = []
-        for target in scroll_and_select_user(page, username, targets):
-            send_message(page, username, target)
-            sent.append(target)
+        for target in targets:
+            search_target(page, username, target, click=True)
+            send_message(page, username, str(target))
+            sent.append(str(target))
 
         expected = {str(target) for target in targets}
         if set(sent) != expected:
@@ -256,19 +304,39 @@ def do_user_task(browser, username, cookies, targets):
         context.close()
 
 
-def runTasks():
+def smoke_user(browser, username, cookies, targets):
+    context, page = open_chat_page(browser, username, cookies)
+    try:
+        ensure_chat_ready(page, username)
+        if targets:
+            # 只验证搜索结果可达，不点击聊天、不输入、不发送。
+            search_target(page, username, targets[0], click=False)
+        logger.info(f"账号 {username} smoke test 通过：登录态、Web Chat 和目标搜索均可用")
+    finally:
+        context.close()
+
+
+def _run_with_browser(worker, label):
     if not userData:
         raise RuntimeError("没有可执行账号，请检查 TASKS 与 COOKIES_<UNIQUE_ID>")
     playwright, browser = get_browser()
     if not playwright or not browser:
         raise RuntimeError("Playwright 浏览器启动失败")
     try:
-        logger.info("开始执行任务")
+        logger.info(label)
         for user in userData:
             username = user.get("username", "未知用户")
             logger.info(f"开始处理账号 {username}")
-            do_user_task(browser, username, user["cookies"], user["targets"])
-            logger.info(f"账号 {username} 任务完成")
+            worker(browser, username, user["cookies"], user["targets"])
+            logger.info(f"账号 {username} 完成")
     finally:
         browser.close()
         playwright.stop()
+
+
+def runTasks():
+    _run_with_browser(do_user_task, "开始执行任务")
+
+
+def smokeTasks():
+    _run_with_browser(smoke_user, "开始执行 SparkFlow Web Chat smoke test（不会发送消息）")
