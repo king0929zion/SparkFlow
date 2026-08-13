@@ -96,12 +96,12 @@ jobs:
           print(f"Configuration validation passed for {len(tasks)} account task(s).")
           PY
 
-      - name: Test Douyin accessibility
+      - name: Test Douyin Web Chat accessibility
         continue-on-error: true
         run: |
           curl --fail --silent --show-error --location --head \
             --connect-timeout 10 --max-time 20 --retry 2 \
-            https://creator.douyin.com/ >/dev/null
+            https://www.douyin.com/chat >/dev/null
 
       - name: Install Python dependencies
         run: python -m pip install -r requirements.txt
