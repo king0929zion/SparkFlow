@@ -1,5 +1,4 @@
 import os
-import shutil
 import subprocess
 import sys
 import traceback
@@ -17,14 +16,6 @@ def install_browser():
         print("浏览器安装完成，请重新运行程序。")
     except subprocess.CalledProcessError as exc:
         print(f"浏览器安装失败：{exc}")
-
-
-def _system_chrome_path():
-    for candidate in ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser"):
-        path = shutil.which(candidate)
-        if path:
-            return path
-    return None
 
 
 def get_browser():
@@ -45,20 +36,12 @@ def get_browser():
     playwright = None
     try:
         playwright = sync_playwright().start()
-        launch_kwargs = {
-            "headless": headless,
-            "args": ["--disable-dev-shm-usage"],
-        }
-
-        # GitHub hosted runners already ship a full Chrome browser. Prefer it over
-        # chrome-headless-shell because Douyin Web Chat is a full browser app.
+        browser = playwright.chromium.launch(
+            headless=headless,
+            args=["--disable-dev-shm-usage"],
+        )
         if env == Environment.GITHUBACTION:
-            chrome_path = _system_chrome_path()
-            if chrome_path:
-                launch_kwargs["executable_path"] = chrome_path
-                print(f"Using system Chrome: {chrome_path}")
-
-        browser = playwright.chromium.launch(**launch_kwargs)
+            print("Using Playwright bundled Chromium from pinned container")
         return playwright, browser
     except Exception as exc:
         if playwright is not None:
