@@ -1,11 +1,10 @@
 import os
 import re
 import time
-import traceback
 import unicodedata
 from pathlib import Path
 
-from playwright.sync_api import Response, TimeoutError as PlaywrightTimeoutError
+from playwright.sync_api import Response
 
 from core.browser import get_browser
 from core.msg_builder import build_message
@@ -160,7 +159,6 @@ def open_chat_page(browser, username, cookies):
         page = context.new_page()
         page.on("response", handle_response)
 
-        # 先访问站点首页，让站点初始化自身 Cookie/脚本，再进入聊天页。
         try:
             page.goto(HOME_URL, wait_until="domcontentloaded", timeout=min(config["browserTimeout"], 45000))
             time.sleep(2)
@@ -309,7 +307,6 @@ def smoke_user(browser, username, cookies, targets):
     try:
         ensure_chat_ready(page, username)
         if targets:
-            # 只验证搜索结果可达，不点击聊天、不输入、不发送。
             search_target(page, username, targets[0], click=False)
         logger.info(f"账号 {username} smoke test 通过：登录态、Web Chat 和目标搜索均可用")
     finally:
