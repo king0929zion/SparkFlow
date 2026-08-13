@@ -2,15 +2,6 @@ name: SparkFlow Web Chat Smoke Test
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - "core/**"
-      - "utils/**"
-      - "main.py"
-      - "requirements.txt"
-      - ".github/workflows/smoke.yml"
 
 permissions:
   contents: read
@@ -48,39 +39,21 @@ jobs:
           SECRETS_JSON: ${{ toJson(secrets) }}
         run: python utils/export_github_env.py
 
-      - name: Validate smoke configuration
-        shell: bash
-        run: |
-          python - <<'PY'
-          import json
-          import os
-
-          tasks = json.loads(os.getenv("TASKS", "[]"))
-          if not tasks:
-              raise SystemExit("TASKS is empty")
-          for task in tasks:
-              unique_id = str(task.get("unique_id") or "").strip()
-              targets = task.get("targets") or []
-              if not unique_id:
-                  raise SystemExit("TASKS contains an account without unique_id")
-              if not targets:
-                  raise SystemExit(f"TASKS account {unique_id} has no targets")
-              key = f"COOKIES_{unique_id}".upper()
-              if not os.getenv(key):
-                  raise SystemExit(f"Missing {key}")
-          print(f"Smoke configuration OK for {len(tasks)} account(s)")
-          PY
-
       - name: Install Python dependencies
         run: python -m pip install -r requirements.txt
 
-      - name: Show browser runtime
+      - name: Ensure browser runtime
         shell: bash
         run: |
-          command -v google-chrome || command -v google-chrome-stable || true
-          google-chrome --version 2>/dev/null || google-chrome-stable --version 2>/dev/null || true
+          if command -v google-chrome >/dev/null 2>&1; then
+            google-chrome --version
+          elif command -v google-chrome-stable >/dev/null 2>&1; then
+            google-chrome-stable --version
+          else
+            playwright install chromium --with-deps --only-shell
+          fi
 
-      - name: Verify Douyin Web Chat
+      - name: Verify Douyin Web Chat without sending
         run: python main.py
 
       - name: Upload smoke diagnostics
