@@ -6,63 +6,82 @@
 ![Playwright](https://img.shields.io/badge/Playwright-%E2%9C%94-green?logo=playwright)
 ![chrome-headless-shell](https://img.shields.io/badge/chrome--headless--shell-%E2%9C%94-brightgreen?logo=googlechrome)
 
-> `dev`分支迁移到`https://www.douyin.com/chat` 加载更稳定，支持通过备注/昵称/抖音号等多种方式智能匹配。由于`https://www.douyin.com/chat`没经过长期测试，该分支目前暂不合并。有能力的可以研究一下
+> `dev` 分支迁移到 `https://www.douyin.com/chat`，加载更稳定并支持更多好友匹配方式。该分支仍处于测试阶段。
 
-## 贡献者
+## 项目介绍
 
-感谢所有为本项目做出贡献的开发者：
+DouYin Spark Flow 是一套面向个人使用场景的抖音火花自动续火脚本，通过 Python + Playwright 执行消息任务，并可由 GitHub Actions 定时运行。
+
+本仓库同时提供 **SparkFlow Web 控制中心**。控制中心与 Python 环境变量和 GitHub Actions 工作流直接对应，用于配置生成、账号任务管理、Cookie JSON 本地检查、定时计划生成和真实 Actions 状态查看。
+
+### 主要能力
+
+- [x] GitHub Actions 定时运行与手动触发
+- [x] Web 控制中心，支持桌面端和移动端
+- [x] 读取公开仓库真实 GitHub Actions Workflow / Run 状态
+- [x] 运行前账号、Cookie、目标好友、定时计划四项预检
+- [x] 多账号与多目标任务
+- [x] 按昵称或抖音号匹配目标好友
+- [x] Environment Variables / Secrets 键名生成
+- [x] `cron` + `timezone` 定时计划生成
+- [x] 每日一言消息模板
+- [x] 源码部署到自有服务器
+
+主任务使用 Playwright 和 `chrome-headless-shell` 自动访问抖音相关页面并执行消息任务。Web 控制中心只负责配置和状态展示，不在浏览器中执行抖音自动化。
+
+## Web 控制中心
+
+控制中心源码位于：
+
+```text
+docs/
+```
+
+可通过 GitHub Pages 部署，也可以直接作为静态站点托管。
+
+控制中心遵循以下安全边界：
+
+- Cookie 只在当前页面内存中用于格式检查。
+- 保存草稿时不会持久化 Cookie。
+- 不要求在静态页面中填写 GitHub PAT。
+- 修改 Secrets、触发 Workflow 等写操作通过 GitHub 官方页面完成。
+- 没有真实 Workflow / Run 时显示空状态，不使用演示数据补位。
+
+详细说明见：[SparkFlow Web 控制中心](docs/配置生成器使用.md)。
+
+## 使用方法
+
+**准备：** GitHub 账号、浏览器，以及运行 SparkFlow 所需的账号配置。
+
+1. 打开 [SparkFlow Web 控制中心说明](docs/配置生成器使用.md)，完成基础配置和账号任务。
+2. 按 [GitHub Actions 部署说明](docs/Action部署说明.md) 创建 `user-data` Environment，并写入 Variables / Secrets。
+3. 在 GitHub Actions 中手动运行一次，确认真实执行结果。
+4. 验证通过后再依赖定时计划运行。
+
+源码部署用户可参考：[源代码部署说明](docs/源代码部署说明.md)。
+
+## 上游项目与贡献者
+
+本仓库来源于 DouYinSparkFlow 项目。上游贡献者信息：
 
 [![contributors](https://contrib.rocks/image?repo=2061360308/DouYinSparkFlow)](https://github.com/2061360308/DouYinSparkFlow/graphs/contributors)
 
-## 📌 项目介绍
+上游讨论区：
 
-**抖音火花自动续火脚本**一款轻量实用的抖音互动脚本，可自动为你和抖音好友续火花，无需手动操作。
+[DouYinSparkFlow Discussions](https://github.com/2061360308/DouYinSparkFlow/discussions)
 
-✅ 支持 GitHub Actions 自动运行（开箱即用的 Workflow 配置）
-
-✅ 也可源码部署至自有服务器，青龙/白虎等任务管理面板，灵活适配个人使用场景
-
-### 特性/优势
-
-- [x] 在线可视化配置工具，新手也能入门操作
-- [x] Fork即用，无需克隆代码，配置运行环境
-- [x] 多用户,同时批量支持多个账户
-- [x] 多目标,一个账户支持多个续火花目标
-- [x] 支持按照昵称和抖音号两种方式查找好友目标
-- [x] 一言支持,更丰富的消息文本
-
-使用`PlayWright`以及`chrome-headless-shell`自动化操作[抖音创作者中心](https://creator.douyin.com/)，进行定时发送抖音消息来续火花
-
-## 🚀 使用方法
-
-**材料准备：** 一个 GitHub 账号和可用浏览器即可，不设额外门槛。
-
-**编辑项目配置：** 保姆级教程见 [配置生成器使用](docs/配置生成器使用.md)
-
-**部署方法：**
-
-1. Github Action 部署（推荐👍），操作说明见 [Action部署说明](docs/Action部署说明.md)
-
-2. 源码部署 （更适合高级用户），操作说明见[源代码部署说明](docs/源代码部署说明.md)
-
-## 📢交流讨论
-
-已开放讨论区，有疑问或展示相关成果，发布话题需求的可以加入讨论
-
-[跳转讨论区](https://github.com/2061360308/DouYinSparkFlow/discussions)
-
-## ⭐Star 趋势
+## Star 趋势
 
 [![Star History Chart](https://api.star-history.com/svg?repos=2061360308/DouYinSparkFlow&type=Date)](https://www.star-history.com/#2061360308/DouYinSparkFlow&Date)
 
-## ⚠️ 免责声明
+## 免责声明
 
-1. 本项目为**开源学习用途**，仅用于技术研究和个人自用，严禁用于商业用途、恶意刷量或违反抖音平台规则的行为。
-2. 使用本脚本产生的一切风险（包括但不限于抖音账号限流、封禁、处罚等）均由使用者自行承担，项目开发者不承担任何责任。
-3. 本项目仅调用公开的接口/模拟人工操作，不涉及破解、入侵抖音系统，使用者需遵守《抖音用户服务协议》及相关法律法规。
-4. 请合理控制脚本运行频率，避免给抖音平台服务器造成压力，建议仅用于个人少量好友的火花维系。
-5. 若你使用本项目即表示已阅读并同意本免责声明，如不同意请立即停止使用。
+1. 本项目为开源学习用途，仅用于技术研究和个人自用，严禁用于商业用途、恶意刷量或违反抖音平台规则的行为。
+2. 使用本脚本产生的一切风险，包括账号限流、封禁、处罚等，由使用者自行承担。
+3. 本项目使用公开页面和浏览器自动化能力，使用者需遵守相关平台协议和法律法规。
+4. 请合理控制运行频率，避免给平台造成额外压力，建议仅用于个人少量好友的火花维系。
+5. 使用本项目即表示已经阅读并接受上述说明。
 
-## 📄 开源协议
+## 开源协议
 
-本项目基于 MIT 协议开源，你可以自由使用、修改和分发本项目代码，详见 [LICENSE](LICENSE) 文件。
+本项目基于 MIT 协议开源，详见 [LICENSE](LICENSE)。
