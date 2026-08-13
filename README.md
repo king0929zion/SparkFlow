@@ -6,7 +6,7 @@
 ![Playwright](https://img.shields.io/badge/Playwright-%E2%9C%94-green?logo=playwright)
 ![chrome-headless-shell](https://img.shields.io/badge/chrome--headless--shell-%E2%9C%94-brightgreen?logo=googlechrome)
 
-> `dev` 分支迁移到 `https://www.douyin.com/chat`，加载更稳定并支持更多好友匹配方式。该分支仍处于测试阶段。
+> `main` 已迁移到 `https://www.douyin.com/chat`。生产任务、Actions、Web 控制中心和文档统一以 `main` 为准。
 
 ## 项目介绍
 
@@ -27,7 +27,7 @@ DouYin Spark Flow 是一套面向个人使用场景的抖音火花自动续火�
 - [x] 每日一言消息模板
 - [x] 源码部署到自有服务器
 
-主任务使用 Playwright 和 `chrome-headless-shell` 自动访问抖音相关页面并执行消息任务。Web 控制中心只负责配置和状态展示，不在浏览器中执行抖音自动化。
+主任务使用 Playwright 和 `chrome-headless-shell` 自动访问 `https://www.douyin.com/chat` 并执行消息任务。Web 控制中心只负责配置和状态展示，不在浏览器中执行抖音自动化。
 
 ## Web 控制中心
 
@@ -37,7 +37,7 @@ DouYin Spark Flow 是一套面向个人使用场景的抖音火花自动续火�
 docs/
 ```
 
-可通过 GitHub Pages 部署，也可以直接作为静态站点托管。
+可通过 GitHub Pages 从 `main /docs` 部署，也可以直接作为静态站点托管。
 
 控制中心遵循以下安全边界：
 
@@ -54,9 +54,10 @@ docs/
 **准备：** GitHub 账号、浏览器，以及运行 SparkFlow 所需的账号配置。
 
 1. 打开 [SparkFlow Web 控制中心说明](docs/配置生成器使用.md)，完成基础配置和账号任务。
-2. 按 [GitHub Actions 部署说明](docs/Action部署说明.md) 创建 `user-data` Environment，并写入 Variables / Secrets。
-3. 在 GitHub Actions 中手动运行一次，确认真实执行结果。
-4. 验证通过后再依赖定时计划运行。
+2. 在 `https://www.douyin.com/chat` 登录目标账号，并从该域名导出 Cookie JSON。
+3. 按 [GitHub Actions 部署说明](docs/Action部署说明.md) 创建 `user-data` Environment，并写入 Variables / Secrets。
+4. 在 GitHub Actions 中手动运行一次 `main`，确认真实执行结果。
+5. 验证通过后再依赖主工作流的定时计划运行。
 
 源码部署用户可参考：[源代码部署说明](docs/源代码部署说明.md)。
 
