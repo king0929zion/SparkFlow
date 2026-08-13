@@ -15,7 +15,6 @@ config = get_config()
 userData = get_userData()
 logger = setup_logger(level=config.get("logLevel", "Info"))
 
-HOME_URL = "https://www.douyin.com/"
 CHAT_URL = "https://www.douyin.com/chat"
 SEARCH_SELECTORS = (
     'input.semi-input[placeholder="搜索"][type="text"]',
@@ -31,6 +30,7 @@ CHAT_BUTTON_SELECTORS = (
     '.semi-button',
 )
 CHAT_EDITOR_SELECTORS = (
+    '.messageEditorimChatEditorContainer [data-slate-editor="true"][contenteditable="true"]',
     'div[data-slate-editor="true"][contenteditable="true"]',
     '[class*="messageEditorimChatEditorContainer"] [contenteditable="true"]',
     '[contenteditable="true"][role="textbox"]',
@@ -40,6 +40,14 @@ CONVERSATION_LIST_SELECTORS = (
     '[class*="conversationConversationListwrapper"]',
 )
 LOGIN_TEXTS = ("扫码登录", "手机号登录", "验证码登录")
+AUTH_COOKIE_MARKERS = (
+    "sessionid",
+    "sessionid_ss",
+    "sid_guard",
+    "sid_tt",
+    "uid_tt",
+    "uid_tt_ss",
+)
 
 
 def norm(value):
@@ -114,11 +122,13 @@ def diagnose(page, username, reason):
         title = "<unavailable>"
         html_len = search_count = list_count = editor_count = -1
         login_visible = False
+
     logger.error(
         f"账号 {username} 页面诊断: reason={reason}; url={page.url}; title={title!r}; "
         f"html_len={html_len}; search={search_count}; lists={list_count}; "
         f"editors={editor_count}; login_visible={login_visible}"
     )
+
     if os.getenv("SAVE_FAILURE_SCREENSHOT", "false").lower() in {"1", "true", "yes", "on"}:
         try:
             Path("logs").mkdir(parents=True, exist_ok=True)
@@ -132,11 +142,7 @@ def diagnose(page, username, reason):
 
 
 def create_context(browser):
-    context = browser.new_context(
-        locale="zh-CN",
-        timezone_id="Asia/Shanghai",
-        viewport={"width": 1440, "height": 900},
-    )
+    context = browser.new_context()
     context.set_default_navigation_timeout(config["browserTimeout"])
     context.set_default_timeout(config["browserTimeout"])
     return context
@@ -146,24 +152,25 @@ def open_chat_page(browser, username, cookies):
     context = create_context(browser)
     try:
         context.add_cookies(cookies)
-        scoped_cookies = context.cookies([HOME_URL, CHAT_URL])
+        scoped_cookies = context.cookies([CHAT_URL])
         if not scoped_cookies:
             raise RuntimeError(
                 "当前 Cookie 没有任何条目可用于 www.douyin.com。"
                 "请从 https://www.douyin.com/chat 重新导出 Cookie。"
             )
 
-        domains = sorted({cookie.get("domain", "") for cookie in scoped_cookies if cookie.get("domain")})
-        logger.info(f"账号 {username} 已载入 {len(scoped_cookies)} 条 Web Cookie，域名数 {len(domains)}")
+        domains = sorted(
+            {cookie.get("domain", "") for cookie in scoped_cookies if cookie.get("domain")}
+        )
+        cookie_names = {cookie.get("name", "") for cookie in scoped_cookies}
+        auth_markers = [name for name in AUTH_COOKIE_MARKERS if name in cookie_names]
+        logger.info(
+            f"账号 {username} 已载入 {len(scoped_cookies)} 条 Web Cookie，"
+            f"域名数 {len(domains)}，认证标记 {auth_markers or ['未识别']}"
+        )
 
         page = context.new_page()
         page.on("response", handle_response)
-
-        try:
-            page.goto(HOME_URL, wait_until="domcontentloaded", timeout=min(config["browserTimeout"], 45000))
-            time.sleep(2)
-        except Exception as exc:
-            logger.warning(f"账号 {username} 首页预热失败，继续尝试聊天页: {exc}")
 
         response = retry_operation(
             "打开抖音 Web 聊天页面",
@@ -179,6 +186,7 @@ def open_chat_page(browser, username, cookies):
                 f"账号 {username} 聊天页导航状态: HTTP {response.status}; final_url={page.url}"
             )
 
+        page.wait_for_timeout(10000)
         return context, page
     except Exception:
         context.close()
@@ -186,7 +194,7 @@ def open_chat_page(browser, username, cookies):
 
 
 def ensure_chat_ready(page, username):
-    timeout = min(config["browserTimeout"], 45000)
+    timeout = min(config["browserTimeout"], 30000)
     ready_selectors = SEARCH_SELECTORS + CONVERSATION_LIST_SELECTORS
     locator, selector = wait_for_any_visible(page, ready_selectors, timeout)
     if locator is not None:
@@ -196,12 +204,11 @@ def ensure_chat_ready(page, username):
     diagnose(page, username, "chat-shell-not-ready")
     if looks_logged_out(page):
         raise RuntimeError(
-            "抖音 Web Chat 显示可见登录界面，当前登录态未生效。"
-            "请确认 COOKIES_<UNIQUE_ID> 来自已登录的 https://www.douyin.com/chat。"
+            "抖音 Web Chat 显示可见登录界面。Cookie 已注入，但抖音没有接受当前会话；"
+            "请查看日志中的认证标记。如果认证 Cookie 存在仍被要求登录，通常是验证码/风控而不是配置 JSON 错误。"
         )
     raise RuntimeError(
-        "抖音 Web Chat 外壳未加载。已排除隐藏登录弹窗误判，"
-        "请查看本次 smoke/运行诊断中的 HTTP 状态和 DOM 计数。"
+        "抖音 Web Chat 外壳未加载，请查看本次 smoke 诊断中的 HTTP 状态和 DOM 计数。"
     )
 
 
@@ -215,19 +222,40 @@ def get_search_input(page, username):
     return search_input
 
 
-def find_chat_button(page, timeout_ms=8000):
+def find_chat_button(page, target, timeout_ms=8000):
     deadline = time.monotonic() + timeout_ms / 1000
     while time.monotonic() < deadline:
+        try:
+            cards = page.locator(".SearchPanelitembox")
+            exact = page.get_by_text(str(target), exact=True)
+            for index in range(min(cards.count(), 20)):
+                card = cards.nth(index)
+                if not card.is_visible():
+                    continue
+                try:
+                    if card.locator("text=" + str(target)).count() == 0 and exact.count() > 0:
+                        continue
+                except Exception:
+                    pass
+                button = card.get_by_text(re.compile(r"^(发消息|发私信|聊天)$")).first
+                if button.count() > 0 and button.is_visible():
+                    return button, ".SearchPanelitembox"
+        except Exception:
+            pass
+
         for selector in CHAT_BUTTON_SELECTORS:
             try:
                 buttons = page.locator(selector)
+                visible = []
                 for index in range(min(buttons.count(), 20)):
                     button = buttons.nth(index)
                     if not button.is_visible():
                         continue
                     text = norm(button.inner_text(timeout=1000))
-                    if "聊天" in text or "发消息" in text or "chat_btn" in selector:
-                        return button, selector
+                    if "聊天" in text or "发消息" in text or "发私信" in text or "chat_btn" in selector:
+                        visible.append(button)
+                if len(visible) == 1:
+                    return visible[0], selector
             except Exception:
                 continue
         time.sleep(0.25)
@@ -235,7 +263,7 @@ def find_chat_button(page, timeout_ms=8000):
 
 
 def search_target(page, username, target, click=True):
-    target = str(target)
+    target = str(target).strip()
     search_input = get_search_input(page, username)
     try:
         search_input.click()
@@ -246,10 +274,13 @@ def search_target(page, username, target, click=True):
         raise RuntimeError(f"无法在抖音 Web Chat 搜索目标 {target}: {exc}") from exc
 
     time.sleep(max(1.2, min(3.0, config["friendListTimeout"] / 1000)))
-    button, selector = find_chat_button(page)
+    button, selector = find_chat_button(page, target)
     if button is None:
         diagnose(page, username, f"search-result-not-found:{target}")
-        raise RuntimeError(f"搜索目标 {target} 后未找到可见的聊天/发消息按钮")
+        raise RuntimeError(
+            f"搜索目标 {target} 后未找到唯一可确认的聊天/发消息按钮。"
+            "如果使用 short_id 搜索失败，建议把目标改成好友备注名。"
+        )
 
     logger.info(f"账号 {username} 搜索到目标 {target}: {selector}")
     if click:
@@ -259,7 +290,11 @@ def search_target(page, username, target, click=True):
 
 
 def get_chat_editor(page, username, target):
-    editor, selector = wait_for_any_visible(page, CHAT_EDITOR_SELECTORS, min(config["browserTimeout"], 30000))
+    editor, selector = wait_for_any_visible(
+        page,
+        CHAT_EDITOR_SELECTORS,
+        min(config["browserTimeout"], 30000),
+    )
     if editor is None:
         diagnose(page, username, f"editor-not-ready:{target}")
         raise RuntimeError(f"已选中目标 {target}，但聊天输入框未加载")
@@ -276,10 +311,10 @@ def send_message(page, username, target):
     editor.click()
     lines = message.split("\\n")
     for index, line in enumerate(lines):
-        editor.type(line, delay=12)
+        page.keyboard.insert_text(line)
         if index < len(lines) - 1:
-            editor.press("Shift+Enter")
-    editor.press("Enter")
+            page.keyboard.press("Shift+Enter")
+    page.keyboard.press("Enter")
     logger.info(f"账号 {username} 已向目标 {target} 提交消息")
     time.sleep(2)
 
