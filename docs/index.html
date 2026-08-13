@@ -1,69 +1,149 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#050a07">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<title>SparkFlow Control Center</title>
-<link rel="stylesheet" href="./static/css/main.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#090b0a">
+  <meta name="color-scheme" content="dark">
+  <title>SparkFlow Control Center</title>
+  <link rel="icon" href="./static/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="./static/css/main.css">
 </head>
 <body>
-<div class="scan"></div><div id="toast"></div>
-<header class="topbar">
-  <div class="brand"><b>SF&gt;</b><span>SparkFlow</span><small>CONTROL CENTER</small></div>
-  <div class="top-actions"><span class="online">● ONLINE</span><span id="clock">--:--:--</span><button class="ghost" data-do="validate">CHECK</button></div>
-</header>
-<div class="app">
-<aside class="side">
-  <div class="side-title">NAVIGATION</div>
-  <nav id="sideNav">
-    <button class="nav active" data-panel="dashboard"><i>00</i>仪表盘</button>
-    <button class="nav" data-panel="config"><i>01</i>基础配置</button>
-    <button class="nav" data-panel="accounts"><i>02</i>账号管理</button>
-    <button class="nav" data-panel="schedule"><i>03</i>定时任务</button>
-    <button class="nav" data-panel="deploy"><i>04</i>部署配置</button>
-  </nav>
-  <div class="runtime"><span>RUNTIME</span><p>repo <b>king0929zion/SparkFlow</b></p><p>mode <b>github-actions</b></p><p>secrets <b class="ok">memory-only</b></p></div>
-</aside>
-<main>
-<section class="page active" id="dashboard">
-  <div class="heading"><div><small>OVERVIEW</small><h1>控制中心</h1><p>GitHub Actions 优先的 SparkFlow 配置与运行入口。</p></div><button class="primary" data-panel="accounts">CONFIGURE</button></div>
-  <div class="hero grid2">
-    <article class="card terminal-card"><div class="bar">sparkflow@github:~ <span>session 01</span></div><div class="hero-body"><code>sparkflow@github:~$ status</code><em>AUTOMATION READY</em><h2>GitHub Actions first.<br>Zero-server control center.</h2><p>纯静态页面。Cookies 仅保留在当前页面内存，不写入本地草稿。</p><div class="badges"><b>STATIC</b><b>NO BUILD</b><b>SECRET-SAFE</b></div></div></article>
-    <article class="card health"><div class="bar">PRE-FLIGHT HEALTH <strong id="healthLabel">READY</strong></div><div class="score"><b id="healthScore">75</b><span>/100</span></div><div class="meter"><i id="healthBar"></i></div><ul id="healthList"></ul></article>
+  <header class="mast">
+    <a class="brand" href="#dashboard" data-panel="dashboard" aria-label="SparkFlow 控制中心首页">
+      <span class="brand-mark">SF</span>
+      <span class="brand-name">SparkFlow</span>
+      <span class="brand-sub">CONTROL CENTER</span>
+    </a>
+    <div class="mast-status" aria-live="polite">
+      <span class="status-dot" id="apiDot"></span>
+      <span id="apiLabel">检查 GitHub…</span>
+    </div>
+    <div class="mast-actions">
+      <button class="quiet-button" type="button" data-action="command">⌘K COMMAND</button>
+      <a class="quiet-button" href="https://github.com/king0929zion/SparkFlow" target="_blank" rel="noreferrer">GITHUB</a>
+    </div>
+  </header>
+
+  <div class="shell">
+    <aside class="rail" aria-label="主导航">
+      <nav class="rail-nav">
+        <button class="rail-link is-active" type="button" data-panel="dashboard"><span>01</span>运行态</button>
+        <button class="rail-link" type="button" data-panel="config"><span>02</span>基础配置</button>
+        <button class="rail-link" type="button" data-panel="accounts"><span>03</span>账号任务</button>
+        <button class="rail-link" type="button" data-panel="schedule"><span>04</span>定时计划</button>
+        <button class="rail-link" type="button" data-panel="deploy"><span>05</span>部署输出</button>
+      </nav>
+      <div class="rail-meta">
+        <p><span>repo</span><b>king0929zion/SparkFlow</b></p>
+        <p><span>runtime</span><b>GitHub Actions</b></p>
+        <p><span>secrets</span><b>memory only</b></p>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <section class="view is-active" id="dashboard" data-view>
+        <div class="page-head page-head-wide">
+          <div>
+            <p class="eyebrow">OPERATIONS / LIVE</p>
+            <h1>SparkFlow 的运行面板，数据从真实项目来。</h1>
+            <p class="lede">配置在浏览器本地生成；运行状态直接读取公开 GitHub Actions API。页面不会伪造执行成功、运行记录或 Cookie 状态。</p>
+          </div>
+          <div class="head-actions">
+            <a class="action-button action-primary" href="https://github.com/king0929zion/SparkFlow/actions" target="_blank" rel="noreferrer">前往 Actions</a>
+            <button class="action-button" type="button" data-action="validate">配置预检</button>
+          </div>
+        </div>
+
+        <section class="status-strip" aria-label="项目状态">
+          <article><span>WORKFLOW</span><b id="workflowState">读取中</b><small id="workflowHint">检查默认分支工作流</small></article>
+          <article><span>LATEST RUN</span><b id="latestRunState">—</b><small id="latestRunHint">等待 GitHub API</small></article>
+          <article><span>LOCAL CONFIG</span><b id="localCheck">0 / 4</b><small>账号 · Cookie · 目标 · 计划</small></article>
+          <article><span>NEXT PLAN</span><b id="nextPlan">09:07</b><small id="nextPlanZone">Asia/Shanghai</small></article>
+        </section>
+
+        <div class="ops-grid">
+          <section class="run-board" aria-labelledby="runsTitle">
+            <div class="section-head">
+              <div><p class="eyebrow">GITHUB ACTIONS</p><h2 id="runsTitle">最近运行</h2></div>
+              <button class="text-button" type="button" data-action="refreshGithub">刷新</button>
+            </div>
+            <div id="runList" class="run-list" aria-live="polite"><div class="empty-state">正在读取公开 Workflow Runs…</div></div>
+          </section>
+
+          <aside class="preflight" aria-labelledby="preflightTitle">
+            <div class="section-head">
+              <div><p class="eyebrow">PRE-FLIGHT</p><h2 id="preflightTitle">运行前检查</h2></div>
+              <span class="check-count" id="checkCount">0/4</span>
+            </div>
+            <ol id="checkList" class="check-list"></ol>
+            <p class="fine-print">Cookie 只在当前页面内存里参与校验。刷新页面后会清空，不写入 localStorage。</p>
+          </aside>
+        </div>
+
+        <section class="integration-map" aria-labelledby="integrationTitle">
+          <div class="section-head"><div><p class="eyebrow">PROJECT CONTRACT</p><h2 id="integrationTitle">Web UI 与 Python 配置一一对应</h2></div></div>
+          <div class="contract-table">
+            <div><span>MESSAGE_TEMPLATE</span><code>config.messageTemplate</code></div>
+            <div><span>MATCH_MODE</span><code>config.matchMode</code></div>
+            <div><span>TASKS</span><code>get_userData()</code></div>
+            <div><span>COOKIES_&lt;UNIQUE_ID&gt;</span><code>Playwright context cookies</code></div>
+            <div><span>BROWSER_TIMEOUT</span><code>page / context timeout</code></div>
+            <div><span>TASK_RETRY_TIMES</span><code>task retry count</code></div>
+          </div>
+        </section>
+      </section>
+
+      <section class="view" id="config" data-view>
+        <div class="page-head">
+          <div><p class="eyebrow">CONFIG / ENVIRONMENT VARIABLES</p><h1>基础配置</h1><p class="lede">字段名、默认值和 Python 的 <code>utils/config.py</code> 保持一致。所有选择控件为自定义组件。</p></div>
+          <button class="action-button" type="button" data-action="saveDraft">保存非敏感草稿</button>
+        </div>
+        <form class="config-form" id="configForm" autocomplete="off">
+          <label class="field field-span-2"><span>MESSAGE_TEMPLATE</span><small>代码按字面量 <code>\n</code> 分行发送；复制到 GitHub 时会自动转换。</small><textarea id="messageTemplate" rows="5">[盖瑞]今日火花[加一]\n—— [右边] 每日一言 [左边] ——\n[API]</textarea></label>
+          <div class="field"><span>MATCH_MODE</span><small>好友匹配策略</small><div class="segmented" id="matchMode" role="group" aria-label="好友匹配策略"><button class="is-selected" type="button" data-value="nickname">nickname</button><button type="button" data-value="short_id">short_id</button></div></div>
+          <div class="field"><span>LOG_LEVEL</span><small>运行日志详细程度</small><div class="choice" data-choice="logLevel"><button class="choice-trigger" type="button" aria-expanded="false">INFO</button><div class="choice-menu" role="listbox"><button type="button" data-value="DEBUG">DEBUG</button><button class="is-selected" type="button" data-value="INFO">INFO</button><button type="button" data-value="WARNING">WARNING</button><button type="button" data-value="ERROR">ERROR</button></div></div></div>
+          <label class="field"><span>BROWSER_TIMEOUT</span><small>Playwright 最大等待时间，毫秒</small><div class="unit-input"><input id="browserTimeout" inputmode="numeric" value="120000"><span>ms</span></div></label>
+          <label class="field"><span>FRIEND_LIST_WAIT_TIME</span><small>好友列表等待时间，毫秒</small><div class="unit-input"><input id="friendListTimeout" inputmode="numeric" value="2000"><span>ms</span></div></label>
+          <div class="field"><span>TASK_RETRY_TIMES</span><small>单次任务重试次数</small><div class="stepper"><button type="button" data-step="-1" aria-label="减少重试次数">−</button><input id="taskRetryTimes" inputmode="numeric" value="3" aria-label="任务重试次数"><button type="button" data-step="1" aria-label="增加重试次数">+</button></div></div>
+          <label class="field"><span>PROXY_ADDRESS</span><small>原项目暂未实现，可留空</small><input id="proxyAddress" placeholder="留空"></label>
+          <div class="field field-span-2"><span>HITOKOTO_TYPES</span><small>用于 <code>[API]</code> 每日一言替换</small><div class="chip-set" id="hitokotoTypes" role="group" aria-label="一言分类"><button type="button">动画</button><button type="button">漫画</button><button type="button">游戏</button><button class="is-selected" type="button">文学</button><button type="button">原创</button><button type="button">来自网络</button><button class="is-selected" type="button">影视</button><button class="is-selected" type="button">诗词</button><button class="is-selected" type="button">哲学</button><button type="button">抖机灵</button><button type="button">其他</button></div></div>
+        </form>
+      </section>
+
+      <section class="view" id="accounts" data-view>
+        <div class="page-head"><div><p class="eyebrow">TASKS / SECRETS</p><h1>账号任务</h1><p class="lede">每张账号卡最终生成一个 <code>TASKS</code> 条目和一个 <code>COOKIES_&lt;UNIQUE_ID&gt;</code> Secret。</p></div><button class="action-button action-primary" type="button" data-action="addAccount">新增账号</button></div>
+        <div id="accountList" class="account-list"></div>
+      </section>
+
+      <section class="view" id="schedule" data-view>
+        <div class="page-head"><div><p class="eyebrow">SCHEDULE / WORKFLOW</p><h1>定时计划</h1><p class="lede">这里生成与 <code>.github/workflows/schedule.yml</code> 一致的 cron + timezone 片段。静态页面不会假装已经写回仓库。</p></div><a class="action-button" href="https://github.com/king0929zion/SparkFlow/edit/main/.github/workflows/schedule.yml" target="_blank" rel="noreferrer">编辑 workflow</a></div>
+        <div class="schedule-layout">
+          <section class="schedule-editor">
+            <div class="field"><span>TIMEZONE</span><small>GitHub Actions 时区</small><div class="choice" data-choice="timezone"><button class="choice-trigger" type="button" aria-expanded="false">Asia/Shanghai</button><div class="choice-menu" role="listbox"><button class="is-selected" type="button" data-value="Asia/Shanghai">Asia/Shanghai</button><button type="button" data-value="America/Los_Angeles">America/Los_Angeles</button><button type="button" data-value="UTC">UTC</button></div></div></div>
+            <div class="field"><span>LOCAL TIME</span><small>计划执行时间</small><div class="time-input"><input id="scheduleHour" value="09" inputmode="numeric" maxlength="2"><b>:</b><input id="scheduleMinute" value="07" inputmode="numeric" maxlength="2"></div></div>
+            <div class="field field-span-2"><span>RUN DAYS</span><small>默认每天执行</small><div class="day-set" id="scheduleDays"><button class="is-selected" type="button" data-day="1">MON</button><button class="is-selected" type="button" data-day="2">TUE</button><button class="is-selected" type="button" data-day="3">WED</button><button class="is-selected" type="button" data-day="4">THU</button><button class="is-selected" type="button" data-day="5">FRI</button><button class="is-selected" type="button" data-day="6">SAT</button><button class="is-selected" type="button" data-day="0">SUN</button></div></div>
+          </section>
+          <section class="workflow-preview"><div class="section-head section-head-inline"><div><p class="eyebrow">EXACT OUTPUT</p><h2>schedule.yml 片段</h2></div><button class="text-button" type="button" data-action="copySchedule">复制</button></div><pre id="schedulePreview"></pre><p class="fine-print">生成后仍需在 GitHub 编辑并提交 workflow 文件，新的定时配置才会真正生效。</p></section>
+        </div>
+      </section>
+
+      <section class="view" id="deploy" data-view>
+        <div class="page-head"><div><p class="eyebrow">DEPLOY / USER-DATA</p><h1>部署输出</h1><p class="lede">对应 GitHub Environment <code>user-data</code>。Variables 可以直接复制；Secrets 保留为逐账号人工粘贴，避免静态页面批量导出敏感值。</p></div><a class="action-button action-primary" href="https://github.com/king0929zion/SparkFlow/settings/environments" target="_blank" rel="noreferrer">打开 Environments</a></div>
+        <div class="deploy-grid">
+          <section><div class="section-head section-head-inline"><div><p class="eyebrow">ENVIRONMENT VARIABLES</p><h2>变量</h2></div><button class="text-button" type="button" data-action="copyVariables">复制全部</button></div><div id="variablesOutput" class="output-list"></div></section>
+          <section><div class="section-head"><div><p class="eyebrow">ENVIRONMENT SECRETS</p><h2>Secrets</h2></div></div><div id="secretsOutput" class="output-list"></div></section>
+        </div>
+        <section class="deploy-guide"><div><b>01</b><span>在 GitHub 创建或打开 <code>user-data</code> Environment。</span></div><div><b>02</b><span>把左侧 Variables 按键名写入 Environment variables。</span></div><div><b>03</b><span>把每个账号 Cookie JSON 写入对应 <code>COOKIES_*</code> Environment secret。</span></div><div><b>04</b><span>回到 Actions 手动运行一次，确认账号 Cookie 与目标好友都有效。</span></div></section>
+      </section>
+    </main>
   </div>
-  <div class="metrics"><article><span>ACCOUNTS</span><b id="mAccounts">1</b><small>ACTIVE</small></article><article><span>TARGETS</span><b id="mTargets">2</b><small>TOTAL</small></article><article><span>SCHEDULE</span><b id="mSchedule">09:07</b><small id="mTimezone">Asia/Shanghai</small></article><article><span>CONFIG</span><b id="mConfig">READY</b><small>LOCAL ONLY</small></article></div>
-  <div class="grid2 lower"><article class="card"><div class="bar">QUICK ACTIONS</div><div class="quick"><button data-do="actions">▶ 立即运行<small>打开 GitHub Actions</small></button><button data-do="validate">⌁ 配置预检<small>检查配置有效性</small></button><button data-panel="deploy">▣ 生成配置<small>Variables / Secrets</small></button><button data-panel="schedule">◷ 定时任务<small>编辑执行计划</small></button></div></article><article class="card"><div class="bar">SECURITY MODEL</div><div class="kv"><p>LOCAL STORAGE <b>NON-SECRET</b></p><p>COOKIE PERSIST <b>DISABLED</b></p><p>NETWORK WRITE <b>DISABLED</b></p><p>SECRETS OUTPUT <b>ON DEMAND</b></p></div></article></div>
-</section>
-<section class="page" id="config">
-  <div class="heading"><div><small>SYSTEM CONFIG</small><h1>基础配置</h1><p>所有选择器、分段按钮与步进控件均为自定义实现。</p></div><button class="ghost" data-do="save">SAVE</button></div>
-  <div class="card formgrid">
-    <label class="wide">MESSAGE_TEMPLATE<textarea id="message">[盖瑞]今日火花[加一]\n—— [右边] 每日一言 [左边] ——\n[API]</textarea></label>
-    <label>MATCH_MODE<div class="segments" id="match"><button class="on" data-value="nickname">nickname</button><button data-value="short_id">short_id</button></div></label>
-    <label>LOG_LEVEL<div class="select" data-key="log"><button class="select-btn">Info⌄</button><div class="menu"><button>Debug</button><button class="on">Info</button><button>Warning</button><button>Error</button></div></div></label>
-    <label>BROWSER_TIMEOUT<div class="unit"><input id="browserTimeout" inputmode="numeric" value="120000"><span>ms</span></div></label>
-    <label>FRIEND_LIST_WAIT_TIME<div class="unit"><input id="friendTimeout" inputmode="numeric" value="2000"><span>ms</span></div></label>
-    <label>TASK_RETRY_TIMES<div class="step"><button data-step="-1">−</button><input id="retry" value="3" inputmode="numeric"><button data-step="1">+</button></div></label>
-    <label>PROXY_ADDRESS<input id="proxy" placeholder="可留空"></label>
-    <label class="wide">HITOKOTO_TYPES<div class="chips" id="hitokoto"><button>动画</button><button>漫画</button><button>游戏</button><button class="on">文学</button><button class="on">影视</button><button class="on">诗词</button><button class="on">哲学</button><button>原创</button><button>来自网络</button><button>抖机灵</button><button>其他</button></div></label>
-  </div>
-</section>
-<section class="page" id="accounts">
-  <div class="heading"><div><small>ACCOUNT MATRIX</small><h1>账号管理</h1><p>每个账号对应一组目标好友与独立 Cookies Secret。</p></div><button class="primary" data-do="addAccount">+ ADD ACCOUNT</button></div>
-  <div id="accountsList"></div>
-</section>
-<section class="page" id="schedule">
-  <div class="heading"><div><small>SCHEDULER</small><h1>定时任务</h1><p>直接生成 GitHub Actions cron 与 timezone 配置。</p></div><button class="ghost" data-do="copyCron">COPY</button></div>
-  <div class="grid2"><article class="card schedule-box"><div class="bar">SCHEDULER INPUT</div><label>TIMEZONE<div class="select" data-key="tz"><button class="select-btn">Asia/Shanghai⌄</button><div class="menu"><button class="on">Asia/Shanghai</button><button>America/Los_Angeles</button><button>UTC</button></div></div></label><label>LOCAL TIME<div class="time"><input id="hour" value="09" maxlength="2" inputmode="numeric"><b>:</b><input id="minute" value="07" maxlength="2" inputmode="numeric"></div></label><label>RUN DAYS<div class="days" id="days"><button class="on" data-day="1">MON</button><button class="on" data-day="2">TUE</button><button class="on" data-day="3">WED</button><button class="on" data-day="4">THU</button><button class="on" data-day="5">FRI</button><button class="on" data-day="6">SAT</button><button class="on" data-day="0">SUN</button></div></label></article><article class="card codebox"><div class="bar">WORKFLOW PREVIEW</div><pre id="cronPreview"></pre></article></div>
-</section>
-<section class="page" id="deploy">
-  <div class="heading"><div><small>DEPLOYMENT OUTPUT</small><h1>GitHub Environment</h1><p>复制到 Environment <code>user-data</code>。</p></div><button class="ghost" data-do="validate">VALIDATE</button></div>
-  <div class="grid2"><article class="card"><div class="bar">ENV VARIABLES <button data-do="copyVars">COPY ALL</button></div><div id="vars" class="output"></div></article><article class="card"><div class="bar">ENV SECRETS <button data-do="copySecrets">COPY ALL</button></div><div id="secrets" class="output"></div></article></div>
-</section>
-<section class="console card"><div class="bar">TERMINAL <button data-do="clear">CLEAR</button></div><div id="logs"></div><form id="consoleForm"><span>sparkflow@github:~$</span><input id="cmd" autocomplete="off"></form></section>
-</main>
-</div>
-<nav class="mobile-nav"><button class="active" data-panel="dashboard"><i>00</i>总览</button><button data-panel="config"><i>01</i>配置</button><button data-panel="accounts"><i>02</i>账号</button><button data-panel="schedule"><i>03</i>定时</button><button data-panel="deploy"><i>04</i>部署</button></nav>
-<script src="./static/js/main.js"></script>
-</body></html>
+
+  <nav class="mobile-nav" aria-label="移动端导航"><button class="is-active" type="button" data-panel="dashboard"><span>01</span>运行</button><button type="button" data-panel="config"><span>02</span>配置</button><button type="button" data-panel="accounts"><span>03</span>账号</button><button type="button" data-panel="schedule"><span>04</span>定时</button><button type="button" data-panel="deploy"><span>05</span>部署</button></nav>
+  <div class="command-layer" id="commandLayer" hidden><button class="command-backdrop" type="button" data-action="closeCommand" aria-label="关闭命令面板"></button><section class="command-panel" role="dialog" aria-modal="true" aria-labelledby="commandTitle"><div class="command-input-wrap"><span>&gt;</span><input id="commandInput" placeholder="输入命令或页面名称" autocomplete="off"></div><div class="command-list" id="commandList" role="listbox"></div><p id="commandTitle" class="command-hint">↑↓ 选择 · Enter 执行 · Esc 关闭</p></section></div>
+  <div id="toastRegion" class="toast-region" aria-live="polite"></div>
+  <input id="importFile" type="file" accept="application/json" hidden>
+  <script src="./static/js/main.js"></script>
+</body>
+</html>
