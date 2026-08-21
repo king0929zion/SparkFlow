@@ -72,18 +72,18 @@ jobs:
               raise SystemExit(f"Unexpected Playwright version: {version}")
           PY
 
-      - name: Test Douyin accessibility
+      - name: Test Douyin Web Chat accessibility
         continue-on-error: true
         run: |
           python - <<'PY'
           import urllib.request
 
           request = urllib.request.Request(
-              "https://www.douyin.com/",
+              "https://www.douyin.com/chat",
               headers={"User-Agent": "Mozilla/5.0"},
           )
           with urllib.request.urlopen(request, timeout=20) as response:
-              print(f"Douyin HTTP: {response.status}")
+              print(f"Douyin Web Chat HTTP: {response.status}")
           PY
 
       - name: Preflight Web Chat smoke test

@@ -24,6 +24,15 @@ class RepositoryPolicyTests(unittest.TestCase):
         self.assertIn('if [ "$branch" = "main" ]', policy)
         self.assertIn("Delete every non-main branch", policy)
 
+    def test_douyin_runtime_is_locked_to_web_chat(self):
+        workflow = (WORKFLOWS / "schedule.yml").read_text(encoding="utf-8")
+        tasks = (ROOT / "core" / "tasks.py").read_text(encoding="utf-8")
+
+        self.assertIn('CHAT_URL = "https://www.douyin.com/chat"', tasks)
+        self.assertNotIn("creator.douyin.com", tasks)
+        self.assertIn('"https://www.douyin.com/chat"', workflow)
+        self.assertNotIn('"https://www.douyin.com/"', workflow)
+
 
 if __name__ == "__main__":
     unittest.main()
