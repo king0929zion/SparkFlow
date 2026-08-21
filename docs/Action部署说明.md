@@ -1,54 +1,34 @@
 # GitHub Actions 部署
 
-SparkFlow 已内置 GitHub Actions 工作流和 Web 控制中心。生产环境统一使用 `main` 分支。推荐先在控制中心完成配置、账号、Cookie 与定时计划预检，再把生成结果写入 GitHub Environment `user-data`。
-
-> Web 控制中心是纯静态页面。它可以生成配置并读取公开的 GitHub Actions 运行状态，但不会在浏览器中保存 Cookie，也不会要求你把 GitHub Token 放进网页。
+SparkFlow 现在只使用 `main`。业务执行只有一个工作流：`.github/workflows/schedule.yml`，手动 smoke、正式发送和定时任务全部走同一条链路。
 
 ## 1. Fork 并启用 Actions
 
-1. Fork 本仓库到自己的 GitHub 账号。
-2. 打开 Fork 后仓库的 `Actions` 页面。
-3. 如果 GitHub 提示 Fork 的工作流尚未启用，先手动启用 Workflows。
+1. Fork 仓库。
+2. 打开 Fork 的 `Actions` 页面并启用 Workflows。
+3. 确认默认分支为 `main`。
 
-首次部署完成后，建议手动运行一次 `DouYin Spark Flow Schedule Run`，分支选择 `main`，确认 Cookie、好友匹配与页面结构都正常。
+仓库自带 `Main Branch Policy`。它会删除非 `main` 分支，因此不要再创建 `api`、`dev` 或功能分支来承载不同运行能力。
 
-## 2. 打开 Web 控制中心
+## 2. 创建 `user-data` Environment
 
-控制中心源码位于 `docs/`，推荐通过 GitHub Pages 从 `main /docs` 部署。
+进入：
 
-控制中心包含：
+```text
+Settings -> Environments -> New environment
+```
 
-- **运行态**：读取当前公开仓库真实的 GitHub Actions Workflow / Run 状态；没有运行记录时会明确显示空状态，不使用模拟数据。
-- **基础配置**：生成与 `utils/config.py` 一致的环境变量。
-- **账号任务**：生成 `TASKS` 与每个账号对应的 `COOKIES_<UNIQUE_ID>` Secret 键名。
-- **定时计划**：生成与 `.github/workflows/schedule.yml` 对应的 `cron` + `timezone` 片段。
-- **部署输出**：集中展示 Environment Variables 和需要创建的 Secrets。
-
-Cookie 内容只保留在当前页面内存中。保存本地草稿时不会写入 Cookie。
-
-## 3. 创建 `user-data` Environment
-
-进入自己的 SparkFlow 仓库：
-
-`Settings` → `Environments` → `New environment`
-
-环境名称填写：
+创建：
 
 ```text
 user-data
 ```
 
-项目的生产工作流通过 `environment: user-data` 读取这里配置的 Variables 和 Secrets。
+SparkFlow 工作流只从这个 Environment 读取运行配置。
 
-## 4. 配置 Environment Variables
+## 3. Environment Variables
 
-在控制中心完成基础配置和账号任务后，进入“部署输出”页面。
-
-把 **Environment Variables** 中的键和值写入：
-
-`Settings` → `Environments` → `user-data` → `Environment variables`
-
-当前 Python 代码实际读取的变量包括：
+写入以下变量：
 
 ```text
 PROXY_ADDRESS
@@ -62,99 +42,112 @@ LOG_LEVEL
 TASKS
 ```
 
-其中 `TASKS` 是 JSON 数组，每个账号包含：
+`TASKS` 示例：
 
 ```json
-{
-  "username": "账号标识",
-  "unique_id": "唯一标识",
-  "targets": ["好友1", "好友2"]
-}
+[
+  {
+    "username": "主账号",
+    "unique_id": "123456789",
+    "targets": ["好友A", "好友B"]
+  }
+]
 ```
 
-## 5. 配置 Environment Secrets
+运行开始后会先执行严格配置校验。无效 JSON、重复 `unique_id`、空目标列表、非法 `MATCH_MODE`、非正数超时/重试值都会在浏览器启动前直接失败。
 
-每个账号都需要一个独立 Cookie Secret，键名规则为：
+## 4. Environment Secrets
+
+每个账号需要：
 
 ```text
 COOKIES_<UNIQUE_ID大写>
 ```
 
-例如 `unique_id` 为 `zion0929`：
+例如：
 
 ```text
-COOKIES_ZION0929
+COOKIES_123456789
 ```
 
-进入：
+Cookie 必须在已登录的 `https://www.douyin.com/chat` 页面导出。推荐使用 Cookie-Editor 的 JSON 数组格式。
 
-`Settings` → `Environments` → `user-data` → `Environment secrets`
+不要把 Cookie 放进仓库文件、Issue、普通 Variables 或网页源码。
 
-### Cookie 必须从 Web Chat 域名获取
+## 5. 先运行 smoke
 
-生产核心现在访问：
+打开 `Actions -> SparkFlow -> Run workflow`：
 
 ```text
-https://www.douyin.com/chat
+Branch: main
+mode: smoke
 ```
 
-因此请先在浏览器打开这个地址并确认已经登录，而且能正常看到聊天列表。然后在这个页面使用 Cookie-Editor 导出 JSON 数组，再把完整 JSON 作为 `COOKIES_<UNIQUE_ID>` 的 Secret 值。
+smoke 会验证：
 
-不要再从 `creator.douyin.com` 导出生产 Cookie。创作者中心 Cookie 可能无法给 `www.douyin.com/chat` 提供有效登录态。
+- 配置和 Cookie JSON。
+- Playwright 浏览器运行时。
+- 抖音 Web Chat 登录态。
+- 聊天页面结构。
+- 至少一个目标好友的匹配。
 
-控制中心会检查 Cookie 是否是非空 JSON 数组，并检查常见 Playwright Cookie 字段和 `douyin.com` 域名，但最终登录有效性仍需要通过一次真实 Actions 运行确认。
+它不会发送消息。
 
-## 6. 修改执行时间
+## 6. 正式发送
 
-生产工作流位于：
+再次运行：
+
+```text
+Branch: main
+mode: send
+```
+
+`send` 不会直接发送。工作流会先自动执行一次 smoke 预检；只有预检成功后才运行正式发送。
+
+定时任务同样固定执行：
+
+```text
+validate -> smoke -> send
+```
+
+## 7. 修改定时计划
+
+只修改：
 
 ```text
 .github/workflows/schedule.yml
 ```
 
-当前主工作流支持 GitHub Actions 的 `timezone` 配置，因此可以直接使用本地时间。例如每天北京时间 09:07：
+默认示例：
 
 ```yaml
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: "7 9 * * *"
-      timezone: "Asia/Shanghai"
+schedule:
+  - cron: "7 9 * * *"
+    timezone: "Asia/Shanghai"
 ```
 
-控制中心“定时计划”页面可以生成对应片段，但纯静态页面不会假装已经写回仓库。复制片段后仍需提交 `.github/workflows/schedule.yml` 才会真正生效。
+Web 控制中心可以生成 `cron + timezone` 片段，但静态页面不会直接修改仓库。
 
-## 7. 手动运行验证
+## 8. 诊断
 
-进入仓库的 `Actions` 页面，选择：
+每次运行都会生成：
 
 ```text
-DouYin Spark Flow Schedule Run
+run-status.json
+logs/
 ```
 
-点击 `Run workflow`，分支选择：
+Actions 结束后会上传 `sparkflow-<run id>-<attempt>` Artifact，并在 Summary 中记录配置、smoke 和 send 的结果。
 
-```text
-main
-```
+如果 smoke 失败，不要继续反复正式发送。优先检查：
 
-建议重点检查：
+1. `COOKIES_*` 是否从 `www.douyin.com/chat` 重新导出。
+2. 浏览器中该账号是否仍能直接打开聊天列表。
+3. `MATCH_MODE` 与 `TARGETS` 是否一致。
+4. Artifact 中的日志和可选失败截图。
 
-1. `Validate SparkFlow configuration` 是否通过。
-2. `Test Douyin Web Chat accessibility` 是否完成。
-3. `Run DouYin Spark Flow` 是否成功。
-4. Actions Summary 中的配置和运行状态。
-5. 失败时下载 `run-logs-*` Artifact 查看 `logs/` 和 `run-status.json`。
+## 9. CI 与单分支策略
 
-如果日志提示 `抖音 Web 登录态无效`，先不要改 Variables。回到 `https://www.douyin.com/chat` 重新登录并重新导出 Cookie，然后只更新对应的 `COOKIES_*` Secret。
+`SparkFlow CI` 会在 `main` 每次更新时执行 Python 编译和单元测试。
 
-如果控制中心显示“API 返回 0 个工作流”或“暂无运行记录”，通常表示这个 Fork 的 Actions 还没有启用或还没有完成过一次运行。启用并手动运行后，再刷新控制中心即可看到真实状态。
-
-## 8. 安全说明
-
-- 不要把 Cookie 提交到 Git 仓库。
-- 不要把 Cookie 放进普通 Environment Variables，应使用 Environment Secrets。
-- 控制中心不批量导出 Cookie 值，只显示需要创建的 Secret 键名和本地格式检查结果。
-- 不要在静态页面中填写 GitHub PAT。涉及触发工作流、修改 Secrets 等写操作，直接通过 GitHub 官方页面完成。
-
-Cookie 获取和好友匹配方式见：[SparkFlow 控制中心与账号配置说明](配置生成器使用.md)。
+`Main Branch Policy` 会删除所有非 `main` 分支并在删除后复查。这样不会再出现某个工作流继续 checkout 一个已经不存在或能力落后的测试分支。

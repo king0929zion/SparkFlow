@@ -1,7 +1,16 @@
-name: DouYin Spark Flow Schedule Run
+name: SparkFlow
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Run mode
+        required: true
+        default: send
+        type: choice
+        options:
+          - send
+          - smoke
   schedule:
     - cron: "7 9 * * *"
       timezone: "Asia/Shanghai"
@@ -18,8 +27,8 @@ env:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
 jobs:
-  run-main:
-    name: Run SparkFlow
+  run:
+    name: Run SparkFlow on main
     timeout-minutes: 20
     runs-on: ubuntu-22.04
     container:
@@ -27,7 +36,7 @@ jobs:
     environment: user-data
 
     steps:
-      - name: Checkout
+      - name: Checkout main
         uses: actions/checkout@v6
 
       - name: Show pinned runtime
@@ -43,58 +52,8 @@ jobs:
         run: python utils/export_github_env.py
 
       - name: Validate SparkFlow configuration
-        id: config_check
-        shell: bash
-        run: |
-          python - <<'PY'
-          import json
-          import os
-          import sys
-
-          def fail(message):
-              print(f"Configuration error: {message}", file=sys.stderr)
-              raise SystemExit(2)
-
-          try:
-              tasks = json.loads(os.getenv("TASKS", "[]"))
-          except json.JSONDecodeError as exc:
-              fail(f"TASKS is not valid JSON: {exc}")
-
-          if not isinstance(tasks, list) or not tasks:
-              fail("TASKS must be a non-empty JSON array")
-
-          match_mode = os.getenv("MATCH_MODE", "nickname")
-          if match_mode not in {"nickname", "short_id"}:
-              fail("MATCH_MODE must be nickname or short_id")
-
-          for index, task in enumerate(tasks, start=1):
-              if not isinstance(task, dict):
-                  fail(f"TASKS[{index}] must be an object")
-              unique_id = str(task.get("unique_id") or "").strip()
-              targets = task.get("targets")
-              if not unique_id:
-                  fail(f"TASKS[{index}] is missing unique_id")
-              if not isinstance(targets, list) or not targets:
-                  fail(f"TASKS[{index}].targets must be a non-empty array")
-              cookies_key = f"COOKIES_{unique_id}".upper()
-              if not os.getenv(cookies_key):
-                  fail(f"missing secret/environment variable: {cookies_key}")
-
-          for name, default in {
-              "BROWSER_TIMEOUT": "120000",
-              "FRIEND_LIST_WAIT_TIME": "2000",
-              "TASK_RETRY_TIMES": "3",
-          }.items():
-              raw = os.getenv(name, default)
-              try:
-                  value = int(raw)
-              except ValueError:
-                  fail(f"{name} must be an integer")
-              if value <= 0:
-                  fail(f"{name} must be greater than 0")
-
-          print(f"Configuration validation passed for {len(tasks)} account task(s).")
-          PY
+        id: config
+        run: python -m utils.validate_config
 
       - name: Install Python dependencies
         run: python -m pip install -r requirements.txt
@@ -128,34 +87,41 @@ jobs:
           PY
 
       - name: Preflight Web Chat smoke test
-        id: smoke
-        env:
-          SPARKFLOW_SMOKE_TEST: "1"
-        run: python main.py
+        id: smoke_preflight
+        if: github.event_name == 'schedule' || inputs.mode == 'send'
+        run: python main.py --mode smoke
 
-      - name: Run DouYin Spark Flow
-        id: sparkflow
-        env:
-          SPARKFLOW_SMOKE_TEST: "0"
-        run: python main.py
+      - name: Send SparkFlow messages
+        id: send
+        if: github.event_name == 'schedule' || inputs.mode == 'send'
+        run: python main.py --mode send
+
+      - name: Smoke only
+        id: smoke_only
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'smoke'
+        run: python main.py --mode smoke
 
       - name: Write Actions summary
         if: always()
         shell: bash
         env:
-          CONFIG_OUTCOME: ${{ steps.config_check.outcome }}
-          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
-          SPARKFLOW_OUTCOME: ${{ steps.sparkflow.outcome }}
+          CONFIG_OUTCOME: ${{ steps.config.outcome }}
+          PREFLIGHT_OUTCOME: ${{ steps.smoke_preflight.outcome }}
+          SEND_OUTCOME: ${{ steps.send.outcome }}
+          SMOKE_ONLY_OUTCOME: ${{ steps.smoke_only.outcome }}
+          REQUESTED_MODE: ${{ inputs.mode || 'send' }}
         run: |
           {
             echo "## SparkFlow run summary"
             echo
+            echo "- Branch: main"
+            echo "- Requested mode: ${REQUESTED_MODE}"
             echo "- Runtime: Playwright Python 1.61.0 / Jammy container"
             echo "- Configuration: ${CONFIG_OUTCOME:-not-run}"
-            echo "- Safe Web Chat smoke: ${SMOKE_OUTCOME:-not-run}"
-            echo "- Message task: ${SPARKFLOW_OUTCOME:-not-run}"
+            echo "- Preflight smoke: ${PREFLIGHT_OUTCOME:-not-run}"
+            echo "- Send: ${SEND_OUTCOME:-not-run}"
+            echo "- Smoke-only: ${SMOKE_ONLY_OUTCOME:-not-run}"
             echo "- Event: ${GITHUB_EVENT_NAME}"
-            echo "- Ref: ${GITHUB_REF_NAME}"
             echo "- Run: ${GITHUB_RUN_ID} / attempt ${GITHUB_RUN_ATTEMPT}"
             if [ -f run-status.json ]; then
               echo "- Structured status: run-status.json"
@@ -166,7 +132,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: run-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          name: sparkflow-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             logs/
             run-status.json

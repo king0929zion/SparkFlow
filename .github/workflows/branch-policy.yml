@@ -1,0 +1,52 @@
+name: Main Branch Policy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/branch-policy.yml
+  create:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sparkflow-main-branch-policy
+  cancel-in-progress: false
+
+jobs:
+  keep-main-only:
+    if: github.event_name != 'create' || github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Delete every non-main branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t branches < <(
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/branches?per_page=100" --jq '.[].name'
+          )
+
+          for branch in "${branches[@]}"; do
+            if [ "$branch" = "main" ]; then
+              continue
+            fi
+            echo "Deleting non-main branch: $branch"
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/heads/${branch}"
+          done
+
+          mapfile -t remaining < <(
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/branches?per_page=100" --jq '.[].name'
+          )
+
+          printf 'Remaining branches: %s\n' "${remaining[*]}"
+          if [ "${#remaining[@]}" -ne 1 ] || [ "${remaining[0]}" != "main" ]; then
+            echo "Repository must contain only the main branch." >&2
+            exit 1
+          fi

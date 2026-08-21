@@ -1,0 +1,33 @@
+name: SparkFlow CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sparkflow-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Compile first-party Python
+        run: python -m compileall -q main.py core utils tests
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
